@@ -4,6 +4,7 @@ import HeroSection from "@/components/HeroSection";
 import MainContent from "@/components/MainContent";
 import PhotosensitiveWarning from "@/components/PhotosensitiveWarning";
 import AboutSection from "@/components/AboutSection";
+import ProjectSection from "@/components/ProjectSection";
 
 export default function Home() {
   return (
@@ -12,6 +13,7 @@ export default function Home() {
       <VideoBackground />
       <HeroSection />
       <AboutSection />
+      <ProjectSection />
       <MainContent />
       <PhotosensitiveWarning />
     </div>

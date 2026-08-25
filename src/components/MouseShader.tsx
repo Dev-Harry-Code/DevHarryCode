@@ -65,9 +65,6 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
   }, [enabled]);
 
   useEffect(() => {
-    const isPointerDevice = window.matchMedia("(pointer: fine)").matches;
-    if (!isPointerDevice) return;
-
     const container = canvasContainerRef.current;
     if (!container) return;
 
@@ -338,12 +335,15 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
 
     const startTime = performance.now();
 
-    function handleMouseMove(e: MouseEvent) {
+    function handlePointerMove(e: PointerEvent) {
+      // Ignore streak/velocity calculations on touch or pen inputs
+      if (e.pointerType !== "mouse") return;
       if (!containerRef.current) return;
+
       const rect = containerRef.current.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = 1.0 - (e.clientY - rect.top) / rect.height;
-      
+
       const pxX = e.clientX;
       const pxY = e.clientY;
       const dx = pxX - prevPxMouseRef.current[0];
@@ -356,14 +356,14 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
       mouseRef.current = [x, y];
     }
 
-    function handleClick(e: MouseEvent) {
+    function handlePointerDown(e: PointerEvent) {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = 1.0 - (e.clientY - rect.top) / rect.height;
 
       const elapsedSec = (performance.now() - startTime) * 0.001;
-      
+
       if (clickRipplesRef.current.length >= MAX_RIPPLES) {
         clickRipplesRef.current.shift();
       }
@@ -372,8 +372,8 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
 
     const parentDiv = containerRef.current;
     if (parentDiv) {
-      parentDiv.addEventListener("mousemove", handleMouseMove);
-      parentDiv.addEventListener("click", handleClick);
+      parentDiv.addEventListener("pointermove", handlePointerMove);
+      parentDiv.addEventListener("pointerdown", handlePointerDown);
     }
 
     // Computes normalized exclusion rects (in shader UV space) from
@@ -419,7 +419,7 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
 
       const vx = smoothedMouseRef.current[0] - smx;
       const vy = smoothedMouseRef.current[1] - smy;
-      
+
       velocityRef.current[0] += (vx - velocityRef.current[0]) * 0.12;
       velocityRef.current[1] += (vy - velocityRef.current[1]) * 0.12;
 
@@ -495,8 +495,8 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
       cancelAnimationFrame(animationFrameId);
       resizeObserver.disconnect();
       if (parentDiv) {
-        parentDiv.removeEventListener("mousemove", handleMouseMove);
-        parentDiv.removeEventListener("click", handleClick);
+        parentDiv.removeEventListener("pointermove", handlePointerMove);
+        parentDiv.removeEventListener("pointerdown", handlePointerDown);
       }
       if (gl.canvas.parentNode) {
         gl.canvas.parentNode.removeChild(gl.canvas);
