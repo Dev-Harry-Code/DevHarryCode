@@ -2,7 +2,7 @@ import React from 'react';
 
 function AboutSection(): React.ReactElement {
   return (
-    <section id='about'></section>
+    <section id='about' className="min-h-screen py-20"></section>
   );
 }
 
