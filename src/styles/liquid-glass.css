@@ -1,0 +1,140 @@
+/* ===========================================================
+   LIQUID GLASS STYLING
+=========================================================== */
+
+:root {
+  --glass-border: rgba(255, 255, 255, 0.35);
+  --glass-shadow: rgba(0, 0, 0, 0.08);
+}
+
+.dark {
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --glass-shadow: rgba(0, 0, 0, 0.4);
+}
+
+/* Glass Floating Container */
+.liquid-glass {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(
+    180deg,
+    rgba(83, 80, 80, 0.3) 0%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.7),
+    0 12px 32px var(--glass-shadow);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.dark .liquid-glass {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    0 12px 32px var(--glass-shadow);
+}
+
+/* Nav Links */
+.nav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent; /* Reserve border space to prevent layout jump on hover */
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark .nav-link {
+  color: #a1a1aa;
+}
+
+.nav-link:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.2) 100%
+  );
+  border-color: var(--glass-border);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.8),
+    0 4px 12px var(--glass-shadow);
+}
+
+.dark .nav-link:hover {
+  color: #ffffff;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  border-color: var(--glass-border);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.2),
+    0 4px 12px var(--glass-shadow);
+}
+
+/* Active Link State */
+.nav-link.active,
+.nav-link:active {
+  transform: scale(0.97);
+}
+
+/* CTA Liquid Button */
+.liquid-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.15rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(240, 245, 255, 0.75) 100%
+  );
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 4px 14px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark .liquid-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.liquid-btn:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 8px 22px rgba(59, 130, 246, 0.2);
+}
+
+.liquid-btn:active {
+  transform: scale(0.97);
+}
