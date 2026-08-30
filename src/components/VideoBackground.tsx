@@ -1,69 +1,94 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Play, Pause } from "lucide-react";
 import { useScrollPosition } from "@/lib/hooks/useScrollPosition";
 
-const videos = ["/programmingedit.mp4", "/cprogrammer.mp4"];
+const videos = [
+  "https://upqmjmnzcpghlyvj.public.blob.vercel-storage.com/videos/programmingedit.mp4",
+  "https://upqmjmnzcpghlyvj.public.blob.vercel-storage.com/videos/cprogrammer.mp4",
+];
 
 export default function VideoBackground() {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef0 = useRef<HTMLVideoElement>(null);
+  const videoRef1 = useRef<HTMLVideoElement>(null);
 
-  const [currentVideo, setCurrentVideo] = useState(0);
+  const [activeIdx, setActiveIdx] = useState<0 | 1>(0);
   const [isPlaying, setIsPlaying] = useState(true);
 
   const scrollY = useScrollPosition();
+  const videoOpacity = Math.max(0, 1 - scrollY / 500);
 
-  const togglePlayback = async () => {
-    if (!videoRef.current) return;
+  // Play active video and pause inactive video cleanly without tearing down DOM elements
+  useEffect(() => {
+    const activeRef = activeIdx === 0 ? videoRef0.current : videoRef1.current;
+    const inactiveRef = activeIdx === 0 ? videoRef1.current : videoRef0.current;
 
-    if (videoRef.current.paused) {
-      await videoRef.current.play();
+    if (activeRef) {
+      activeRef.currentTime = 0;
+      activeRef.playbackRate = 0.8;
+      if (isPlaying) {
+        activeRef.play().catch(() => setIsPlaying(false));
+      }
+    }
+
+    if (inactiveRef) {
+      inactiveRef.pause();
+    }
+  }, [activeIdx, isPlaying]);
+
+  const togglePlayback = () => {
+    const currentRef = activeIdx === 0 ? videoRef0.current : videoRef1.current;
+    if (!currentRef) return;
+
+    if (currentRef.paused) {
+      currentRef.play().catch(() => {});
       setIsPlaying(true);
     } else {
-      videoRef.current.pause();
+      currentRef.pause();
       setIsPlaying(false);
     }
   };
 
-  const handleVideoEnd = () => {
-    setCurrentVideo((prev) => (prev + 1) % videos.length);
+  const handleVideoEnded = () => {
+    setActiveIdx((prev) => (prev === 0 ? 1 : 0));
   };
-
-  // Calculate opacity/fade out of video based on scroll depth (0 to 600px)
-  const videoOpacity = Math.max(0, 1 - scrollY / 500);
 
   return (
     <>
-      {/* Full-screen Fixed Video Background */}
       <div
         className="fixed inset-0 z-0 h-screen w-full overflow-hidden transition-opacity duration-100 ease-out pointer-events-none"
         style={{ opacity: videoOpacity }}
       >
+        {/* Video 1 */}
         <video
-          suppressHydrationWarning
-          key={videos[currentVideo]}
-          ref={videoRef}
-          src={videos[currentVideo]}
-          autoPlay
+          ref={videoRef0}
+          src={videos[0]}
           muted
           playsInline
-          className="h-full w-full object-cover"
-          onLoadedData={() => {
-            if (videoRef.current) {
-              videoRef.current.playbackRate = 0.8;
-              if (isPlaying) {
-                videoRef.current.play().catch(() => setIsPlaying(false));
-              }
-            }
-          }}
-          onEnded={handleVideoEnd}
+          preload="auto"
+          onEnded={handleVideoEnded}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
+            activeIdx === 0 ? "opacity-100" : "opacity-0"
+          }`}
         />
-        {/* Dark vignette gradient overlay for contrast */}
+
+        {/* Video 2 */}
+        <video
+          ref={videoRef1}
+          src={videos[1]}
+          muted
+          playsInline
+          preload="auto"
+          onEnded={handleVideoEnded}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
+            activeIdx === 1 ? "opacity-100" : "opacity-0"
+          }`}
+        />
+
         <div className="absolute inset-0 bg-linear-to-b from-black/60 via-black/40 to-black" />
       </div>
 
-      {/* Floating Video Controls */}
       <button
         onClick={togglePlayback}
         aria-label={isPlaying ? "Pause video background" : "Play video background"}

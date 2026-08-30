@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Image from "next/image";
 import {
   motion,
@@ -13,190 +13,141 @@ import {
 
 export default function InteractiveProfileCard() {
   const cardRef = useRef<HTMLDivElement>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [active, setActive] = useState(false);
 
-  // Mouse tracking
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  // Raw pointer position, normalized to -0.5..0.5 on each axis
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
-  const mouseX = useSpring(x, {
-    stiffness: 220,
-    damping: 22,
-    mass: 0.4,
-  });
+  const mouseX = useSpring(x, { stiffness: 300, damping: 30, mass: 0.6 });
+  const mouseY = useSpring(y, { stiffness: 300, damping: 30, mass: 0.6 });
 
-  const mouseY = useSpring(y, {
-    stiffness: 220,
-    damping: 22,
-    mass: 0.4,
-  });
+  // Tilt — kept tight so it reads as precise rather than floppy
+  const rotateX = useTransform(mouseY, [-0.5, 0.5], [10, -10]);
+  const rotateY = useTransform(mouseX, [-0.5, 0.5], [-10, 10]);
 
-  // Card tilt
-  const rotateX = useTransform(mouseY, [-0.5, 0.5], [18, -18]);
-  const rotateY = useTransform(mouseX, [-0.5, 0.5], [-18, 18]);
+  // Grounded shadow: shifts opposite the tilt, as if light is fixed
+  // overhead and the card is genuinely lifting off the page.
+  const shadowX = useTransform(mouseX, [-0.5, 0.5], [22, -22]);
+  const shadowY = useTransform(mouseY, [-0.5, 0.5], [14, -14]);
+  const shadowBlur = useTransform(
+    [mouseX, mouseY],
+    ([lx, ly]: number[]) => 40 + Math.min(1, Math.hypot(lx, ly) * 2.2) * 30
+  );
+  const shadowOpacity = useTransform(
+    [mouseX, mouseY],
+    ([lx, ly]: number[]) => 0.35 + Math.min(1, Math.hypot(lx, ly) * 2.2) * 0.25
+  );
+  const dropShadow = useMotionTemplate`drop-shadow(${shadowX}px ${shadowY}px ${shadowBlur}px rgba(0,0,0,${shadowOpacity}))`;
 
-  // Floating image movement
-  const imageX = useTransform(mouseX, [-0.5, 0.5], [-12, 12]);
-  const imageY = useTransform(mouseY, [-0.5, 0.5], [-12, 12]);
+  // Soft highlight that tracks the pointer directly
+  const shineX = useTransform(mouseX, [-0.5, 0.5], ["12%", "88%"]);
+  const shineY = useTransform(mouseY, [-0.5, 0.5], ["12%", "88%"]);
+  const shineBackground = useMotionTemplate`radial-gradient(220px circle at ${shineX} ${shineY}, rgba(255,255,255,0.5), transparent 70%)`;
 
-  // Reflection movement
-  const shineX = useTransform(mouseX, [-0.5, 0.5], ["10%", "90%"]);
-  const shineY = useTransform(mouseY, [-0.5, 0.5], ["10%", "90%"]);
+  // A thin ring of light that orbits the frame, angled toward the pointer.
+  // This is the one bold move — everything else stays quiet around it.
+  const ringAngle = useTransform(
+    [mouseX, mouseY],
+    ([lx, ly]: number[]) => (Math.atan2(ly, lx) * 180) / Math.PI
+  );
+  const ringOpacity = useTransform(
+    [mouseX, mouseY],
+    ([lx, ly]: number[]) => Math.min(1, Math.hypot(lx, ly) * 2.4)
+  );
+  const ringBackground = useMotionTemplate`conic-gradient(from ${ringAngle}deg, transparent 0deg, rgba(255,255,255,0.9) 18deg, transparent 60deg)`;
 
-  // Fix: Dynamically template motion values into string format
-  const shineBackground = useMotionTemplate`radial-gradient(circle at ${shineX} ${shineY}, rgba(255,255,255,0.28), transparent 65%)`;
-
-  const glareX = useTransform(mouseX, [-0.5, 0.5], [-60, 60]);
-  const glareY = useTransform(mouseY, [-0.5, 0.5], [-60, 60]);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
-
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!cardRef.current || reducedMotion) return;
     const rect = cardRef.current.getBoundingClientRect();
-
-    const mouseXPos = (e.clientX - rect.left) / rect.width - 0.5;
-    const mouseYPos = (e.clientY - rect.top) / rect.height - 0.5;
-
-    x.set(mouseXPos);
-    y.set(mouseYPos);
+    x.set((e.clientX - rect.left) / rect.width - 0.5);
+    y.set((e.clientY - rect.top) / rect.height - 0.5);
   };
 
-  const handleMouseLeave = () => {
+  const handlePointerLeave = () => {
     x.set(0);
     y.set(0);
+    setActive(false);
   };
 
   return (
-    <div className="relative mt-10 flex justify-center perspective-[1800px]">
-      {/* Dim Blurry Shadow */}
-      <div className="absolute inset-2 rounded-[40px] bg-black/60 blur-3xl pointer-events-none" />
-
+    <div className="relative mt-10 flex justify-center perspective-[1700px]">
       <motion.div
-        animate={{
-          y: [-8, 8, -8],
-        }}
+        animate={reducedMotion ? {} : { y: active ? 0 : [-7, 7, -7] }}
         transition={{
-          duration: 6,
-          repeat: Infinity,
+          duration: 5.5,
+          repeat: active ? 0 : Infinity,
           ease: "easeInOut",
         }}
       >
         <motion.div
           ref={cardRef}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          whileHover={{
-            scale: 1.04,
-          }}
-          whileTap={{
-            scale: 0.98,
-          }}
+          onPointerMove={handlePointerMove}
+          onPointerEnter={() => setActive(true)}
+          onPointerLeave={handlePointerLeave}
+          whileTap={{ scale: 0.97 }}
           style={{
-            rotateX,
-            rotateY,
+            rotateX: reducedMotion ? 0 : rotateX,
+            rotateY: reducedMotion ? 0 : rotateY,
             transformStyle: "preserve-3d",
+            filter: reducedMotion ? "none" : dropShadow,
+            touchAction: "none",
           }}
-          className="
-            group
-            relative
-            h-85
-            w-72.5
-            overflow-hidden
-            rounded-[34px]
-
-            border border-white/15
-            bg-white/6
-
-            backdrop-blur-3xl
-            backdrop-saturate-150
-
-            shadow-[0_30px_80px_rgba(0,0,0,0.45)]
-          "
+          className="group relative h-86 w-72.5 cursor-pointer rounded-[32px]"
         >
-          {/* Profile Image Background */}
-          <Image
-            src="/profile.jpg"
-            alt="Profile photo"
-            fill
-            className="object-cover"
-            sizes="2560px"
-            priority
-          />
-
-          {/* Glass Overlay over Image */}
-          <div
-            className="
-              absolute
-              inset-0
-              rounded-[34px]
-              bg-linear-to-br
-              from-black/20
-              via-transparent
-              to-black/40
-            "
-          />
-
-          {/* Inner Border */}
-          <div
-            className="
-              absolute
-              inset-px
-              rounded-[33px]
-              border
-              border-white/10
-              pointer-events-none
-            "
-          />
-
-          {/* Top Reflection */}
-          <div
-            className="
-              absolute
-              top-0
-              left-0
-              h-24
-              w-full
-              bg-linear-to-b
-              from-white/20
-              to-transparent
-              pointer-events-none
-            "
-          />
-
-          {/* Dynamic Glass Reflection */}
+          {/* Orbiting light-trace ring — the signature element */}
           <motion.div
             style={{
-              background: shineBackground,
+              background: ringBackground,
+              opacity: reducedMotion ? 0 : ringOpacity,
+              WebkitMask:
+                "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+              WebkitMaskComposite: "xor",
+              maskComposite: "exclude",
             }}
-            className="
-              absolute
-              inset-0
-              pointer-events-none
-            "
+            className="pointer-events-none absolute -inset-1.5 rounded-[33px] p-1.5"
           />
 
-          {/* Moving Light Beam */}
-          <motion.div
-            style={{
-              x: glareX,
-              y: glareY,
-            }}
-            className="
-              absolute
-              -left-40
-              -top-40
-              h-112.5
-              w-40
-              rotate-12
+          <div className="absolute inset-0 overflow-hidden rounded-[32px] border border-white/15 bg-black">
+            {/* Photo, pushed slightly forward in 3D space for real depth */}
+            <div
+              className="absolute -inset-2.5"
+              style={{ transform: "translateZ(24px) scale(1.06)" }}
+            >
+              <Image
+                src="/profile.jpg"
+                alt="Profile photo"
+                fill
+                className="object-cover"
+                sizes="400px"
+                priority
+              />
+            </div>
 
-              bg-linear-to-r
-              from-transparent
-              via-white/20
-              to-transparent
+            {/* Depth gradient for legibility and richness */}
+            <div className="absolute inset-0 bg-linear-to-br from-black/10 via-transparent to-black/50" />
 
-              blur-3xl
-              pointer-events-none
-            "
-          />
+            {/* Top glass reflection */}
+            <div className="absolute top-0 left-0 h-24 w-full bg-linear-to-b from-white/10 to-transparent pointer-events-none" />
+
+            {/* Pointer-tracking highlight */}
+            <motion.div
+              style={{ background: shineBackground, mixBlendMode: "soft-light" }}
+              className="absolute inset-0 pointer-events-none"
+            />
+
+            {/* Inner hairline */}
+            <div className="pointer-events-none absolute inset-0 rounded-[32px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" />
+          </div>
         </motion.div>
       </motion.div>
     </div>
