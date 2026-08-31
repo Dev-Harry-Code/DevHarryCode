@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useShaderExclude } from "@/components/ShaderExcludeContext";
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -106,7 +106,7 @@ const ShaderPlane: React.FC<{ targetMouse: React.MutableRefObject<THREE.Vector2>
   useFrame((state) => {
     if (!meshRef.current) return;
     const mat = meshRef.current.material as THREE.ShaderMaterial;
-    mat.uniforms.u_mouse.value.lerp(targetMouse.current, 0.35);
+    mat.uniforms.u_mouse.value.lerp(targetMouse.current, 0.55);
     mat.uniforms.u_time.value = state.clock.getElapsedTime();
     mat.uniforms.u_resolution.value.set(size.width, size.height);
   });
@@ -139,14 +139,20 @@ const ShaderPlane: React.FC<{ targetMouse: React.MutableRefObject<THREE.Vector2>
       vec2 tileCenter = (gridId + 0.5) / gridSize;
       float dist = distance(tileCenter, m);
 
-      float intensity = pow(smoothstep(0.35, 0.0, dist), 1.8);
-      float border = step(0.03, gridUv.x) * step(0.03, gridUv.y) * step(gridUv.x, 0.97) * step(gridUv.y, 0.97);
-      
-      vec3 baseColor = vec3(0.02, 0.02, 0.05);
-      vec3 activeColor = vec3(0.5, 0.65, 1.0); 
+      float intensity = 0.0;
+      if (dist < 0.5) {
+        float t = dist / 0.5;
+        intensity = smoothstep(1.0, 0.0, t);
+        intensity = intensity * intensity;
+      }
 
-      vec3 finalColor = mix(baseColor, activeColor, intensity * 0.8);
-      float alpha = (1.0 - border) * 0.08 + intensity * 0.35;
+      float border = step(0.03, gridUv.x) * step(0.03, gridUv.y) * step(gridUv.x, 0.97) * step(gridUv.y, 0.97);
+
+      vec3 baseColor = vec3(0.02, 0.02, 0.05);
+      vec3 activeColor = vec3(0.5, 0.65, 1.0);
+
+      vec3 finalColor = mix(baseColor, activeColor, intensity);
+      float alpha = (1.0 - border) * 0.08 + intensity * 0.55;
 
       gl_FragColor = vec4(finalColor, alpha);
     }
@@ -167,8 +173,21 @@ const ShaderPlane: React.FC<{ targetMouse: React.MutableRefObject<THREE.Vector2>
 
 export const ProjectSection: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [inView, setInView] = useState(true);
   const projectRef = useShaderExclude<HTMLDivElement>("projectRef");
   const targetMouse = useRef(new THREE.Vector2(0.5, 0.5));
+  const sectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => setInView(entries[0]?.isIntersecting ?? false),
+      { rootMargin: "300px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -179,11 +198,12 @@ export const ProjectSection: React.FC = () => {
 
   return (
     <section 
+      ref={sectionRef}
       onPointerMove={handlePointerMove}
       className="dark relative min-h-screen w-full bg-[#030303] text-foreground py-20 px-6 select-none [mask-image:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)] [WebkitMaskImage:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)]"
     >
       <div ref={projectRef} className="absolute inset-0 pointer-events-none z-0">
-        <Canvas camera={{ position: [0, 0, 1] }} gl={{ alpha: true }}>
+        <Canvas frameloop={inView ? "always" : "never"} camera={{ position: [0, 0, 1] }} gl={{ alpha: true }}>
           <ShaderPlane targetMouse={targetMouse} />
         </Canvas>
       </div>

@@ -2,7 +2,6 @@
 
 import { useRef, useState, useEffect } from "react";
 import { Play, Pause } from "lucide-react";
-import { useScrollPosition } from "@/lib/hooks/useScrollPosition";
 
 const videos = [
   "https://upqmjmnzcpghlyvj.public.blob.vercel-storage.com/videos/programmingedit.mp4",
@@ -12,12 +11,35 @@ const videos = [
 export default function VideoBackground() {
   const videoRef0 = useRef<HTMLVideoElement>(null);
   const videoRef1 = useRef<HTMLVideoElement>(null);
+  const fadeRef = useRef<HTMLDivElement>(null);
 
   const [activeIdx, setActiveIdx] = useState<0 | 1>(0);
   const [isPlaying, setIsPlaying] = useState(true);
 
-  const scrollY = useScrollPosition();
-  const videoOpacity = Math.max(0, 1 - scrollY / 500);
+  // Fade the fixed video background out on scroll without re-rendering on every frame
+  useEffect(() => {
+    let rafId: number | null = null;
+
+    const updateFade = () => {
+      rafId = null;
+      const el = fadeRef.current;
+      if (el) {
+        el.style.opacity = String(Math.max(0, 1 - window.scrollY / 500));
+      }
+    };
+
+    const handleScroll = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(updateFade);
+    };
+
+    updateFade();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, []);
 
   // Play active video and pause inactive video cleanly without tearing down DOM elements
   useEffect(() => {
@@ -57,8 +79,8 @@ export default function VideoBackground() {
   return (
     <>
       <div
-        className="fixed inset-0 z-0 h-screen w-full overflow-hidden transition-opacity duration-100 ease-out pointer-events-none"
-        style={{ opacity: videoOpacity }}
+        ref={fadeRef}
+        className="fixed inset-0 z-0 h-screen w-full overflow-hidden pointer-events-none"
       >
         {/* Video 1 */}
         <video

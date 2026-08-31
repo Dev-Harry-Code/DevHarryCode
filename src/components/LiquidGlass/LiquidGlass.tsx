@@ -180,26 +180,56 @@
       let animationFrameId: number;
       let currentEnabled = enabledFactorRef.current;
       const startTime = performance.now();
+      let visible = true;
+      let lastFrameTime = -1;
+
+      const FRAME_INTERVAL = 1000 / 60;
 
       function update(now: number) {
-        const elapsed = (now - startTime) * 0.001;
-
-        mouseRef.current[0] += (targetMouseRef.current[0] - mouseRef.current[0]) * 0.06;
-        mouseRef.current[1] += (targetMouseRef.current[1] - mouseRef.current[1]) * 0.06;
-        currentEnabled += (enabledFactorRef.current - currentEnabled) * 0.08;
-
-        program.uniforms.uTime.value = elapsed;
-        program.uniforms.uMouse.value = mouseRef.current;
-        program.uniforms.uEnabled.value = currentEnabled;
-
-        renderer.render({ scene, camera });
         animationFrameId = requestAnimationFrame(update);
+
+        if (!visible) return;
+
+        if (lastFrameTime < 0 || now - lastFrameTime >= FRAME_INTERVAL) {
+          lastFrameTime = now;
+          const elapsed = (now - startTime) * 0.001;
+
+          mouseRef.current[0] += (targetMouseRef.current[0] - mouseRef.current[0]) * 0.06;
+          mouseRef.current[1] += (targetMouseRef.current[1] - mouseRef.current[1]) * 0.06;
+          currentEnabled += (enabledFactorRef.current - currentEnabled) * 0.08;
+
+          program.uniforms.uTime.value = elapsed;
+          program.uniforms.uMouse.value = mouseRef.current;
+          program.uniforms.uEnabled.value = currentEnabled;
+
+          if (currentEnabled > 0.005 || enabledFactorRef.current > 0.005) {
+            renderer.render({ scene, camera });
+          }
+        }
       }
+
+      const handleVisibilityChange = () => {
+        visible = document.visibilityState === "visible";
+        if (visible && lastFrameTime < 0) lastFrameTime = performance.now();
+      };
+
+      const visibilityObserver = new IntersectionObserver(
+        (entries) => {
+          visible = entries[0]?.isIntersecting ?? false;
+          if (visible && lastFrameTime < 0) lastFrameTime = performance.now();
+        },
+        { rootMargin: "100px" }
+      );
+      visibilityObserver.observe(container);
+
+      document.addEventListener("visibilitychange", handleVisibilityChange);
 
       animationFrameId = requestAnimationFrame(update);
 
       return () => {
         cancelAnimationFrame(animationFrameId);
+        visibilityObserver.disconnect();
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
         resizeObserver.disconnect();
         window.removeEventListener("mousemove", handleMouseMove);
         if (gl.canvas.parentNode) {

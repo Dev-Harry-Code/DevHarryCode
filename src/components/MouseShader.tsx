@@ -376,6 +376,10 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
       parentDiv.addEventListener("pointerdown", handlePointerDown);
     }
 
+    window.addEventListener("scroll", handleScrollStart, { passive: true });
+    window.addEventListener("wheel", handleScrollStart, { passive: true });
+    window.addEventListener("scroll", handleScrollStop, { passive: true });
+
     // Computes normalized exclusion rects (in shader UV space) from
     // whatever elements are currently registered via useShaderExclude()
     function computeExcludeRects(): [number, number, number, number][] {
@@ -408,8 +412,42 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
 
     let animationFrameId: number;
     let currentEnabled = enabledFactorRef.current;
+    let visible = true;
+    let scrolling = false;
+    let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastFrameTime = -1;
+
+    const FRAME_INTERVAL = 1000 / 60;
+
+    function handleScrollStart() {
+      scrolling = true;
+      if (scrollStopTimer) {
+        clearTimeout(scrollStopTimer);
+        scrollStopTimer = null;
+      }
+    }
+
+    function handleScrollStop() {
+      if (scrollStopTimer) return;
+      scrollStopTimer = setTimeout(() => {
+        scrollStopTimer = null;
+        scrolling = false;
+        lastFrameTime = -1;
+      }, 120);
+    }
 
     function update(now: number) {
+      animationFrameId = requestAnimationFrame(update);
+
+      if (!visible || scrolling) return;
+
+      if (lastFrameTime < 0 || now - lastFrameTime >= FRAME_INTERVAL) {
+        lastFrameTime = now;
+        renderFrame(now);
+      }
+    }
+
+    function renderFrame(now: number) {
       const elapsed = (now - startTime) * 0.001;
 
       const smx = smoothedMouseRef.current[0];
@@ -486,13 +524,44 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
       program.uniforms.uHasTexture.value = hasTexture;
 
       renderer.render({ scene, camera });
+    }
+
+    const handleVisibilityChange = () => {
+      visible = document.visibilityState === "visible";
+      if (visible && lastFrameTime < 0) {
+        lastFrameTime = performance.now();
+      }
+    };
+
+    const visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        visible = entries[0]?.isIntersecting ?? false;
+        if (visible && lastFrameTime < 0) {
+          lastFrameTime = performance.now();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    visibilityObserver.observe(container);
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    function startLoop() {
+      cancelAnimationFrame(animationFrameId);
+      lastFrameTime = -1;
       animationFrameId = requestAnimationFrame(update);
     }
 
-    animationFrameId = requestAnimationFrame(update);
+    startLoop();
 
     return () => {
       cancelAnimationFrame(animationFrameId);
+      if (scrollStopTimer) clearTimeout(scrollStopTimer);
+      window.removeEventListener("scroll", handleScrollStart);
+      window.removeEventListener("wheel", handleScrollStart);
+      window.removeEventListener("scroll", handleScrollStop);
+      visibilityObserver.disconnect();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       resizeObserver.disconnect();
       if (parentDiv) {
         parentDiv.removeEventListener("pointermove", handlePointerMove);
