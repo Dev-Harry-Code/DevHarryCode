@@ -2,11 +2,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShaderExclude } from "@/components/ShaderExcludeContext";
-import { MapPin, Mail, Volume2, VolumeX, Copy, Check } from 'lucide-react';
+import { MapPin, Mail, Volume2, VolumeX, Copy, Check, X, Minus, Plus } from 'lucide-react';
 import { FaGithub, FaLinkedin } from 'react-icons/fa6';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -51,7 +50,7 @@ function TermLink({ href, children }: { href: string; children: React.ReactNode 
 }
 
 function SectionBody({ children }: { children: React.ReactNode }) {
-  return <div className="mt-2 text-xs sm:text-sm leading-relaxed text-zinc-300">{children}</div>;
+  return <div className="mt-1.5 text-xs sm:text-sm leading-relaxed text-zinc-300">{children}</div>;
 }
 
 export default function AboutSection(): React.ReactElement {
@@ -89,12 +88,12 @@ export default function AboutSection(): React.ReactElement {
     skills: {
       title: 'Technical Skills',
       body: (
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {SKILLS.map((skill) => (
             <Badge
               key={skill}
               variant="outline"
-              className="rounded border-zinc-700 bg-zinc-900 font-mono text-[11px] sm:text-xs font-normal text-emerald-300 px-2 py-0.5"
+              className="rounded border-zinc-700 bg-zinc-900/90 font-mono text-[11px] sm:text-xs font-normal text-emerald-300 px-2 py-0.5"
             >
               {skill}
             </Badge>
@@ -105,11 +104,11 @@ export default function AboutSection(): React.ReactElement {
     experience: {
       title: 'Experience',
       body: (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <div>
             <div className="font-semibold text-zinc-100 text-xs sm:text-sm">President - IT COMMITTEE</div>
             <div className="text-[11px] sm:text-xs text-emerald-400">Delhi Public School Jodhpur | Jul 2025 – Jan 2026</div>
-            <ul className="mt-1.5 list-disc pl-4 text-[11px] sm:text-xs space-y-1 text-zinc-400">
+            <ul className="mt-1 list-disc pl-4 text-[11px] sm:text-xs space-y-0.5 text-zinc-400">
               <li>Led technical initiatives and digital event coordination</li>
               <li>Organized and managed IT-related activities and competitions</li>
               <li>Collaborated with student teams on technology-driven projects</li>
@@ -117,8 +116,7 @@ export default function AboutSection(): React.ReactElement {
           </div>
           <div className="pt-1 text-[11px] sm:text-xs text-zinc-400 border-t border-zinc-800/60">
             Represented as a National-Level IT Fest Candidate, strengthening skills in innovation,
-            collaboration, and technical problem-solving under competitive environments. Experience
-            building AI assistants and scalable web platforms.
+            collaboration, and technical problem-solving under competitive environments.
           </div>
         </div>
       ),
@@ -126,7 +124,7 @@ export default function AboutSection(): React.ReactElement {
     education: {
       title: 'Education',
       body: (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div>
             <div className="font-semibold text-zinc-100 text-xs sm:text-sm">JIET Group of Institutions, Jodhpur</div>
             <div className="text-[11px] sm:text-xs text-emerald-400">B.Tech - Computer Science (AI & ML) | Aug 2026 – Jul 2030</div>
@@ -164,12 +162,12 @@ export default function AboutSection(): React.ReactElement {
     contact: {
       title: 'Contact Information',
       body: (
-        <div className="space-y-1.5 text-xs sm:text-sm">
+        <div className="space-y-1 text-xs sm:text-sm">
           <div className="flex items-center gap-2">
-            <MapPin size={14} className="text-zinc-500 shrink-0" /> <span className="truncate">Jodhpur, Rajasthan, India</span>
+            <MapPin size={13} className="text-zinc-500 shrink-0" /> <span className="truncate">Jodhpur, Rajasthan, India</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <Mail size={14} className="text-zinc-500 shrink-0" />
+            <Mail size={13} className="text-zinc-500 shrink-0" />
             <TermLink href={`mailto:${EMAIL}`}>{EMAIL}</TermLink>
             <button
               type="button"
@@ -180,16 +178,16 @@ export default function AboutSection(): React.ReactElement {
                 setTimeout(() => setCopied(false), 1500);
               }}
               title="Copy email"
-              className="text-zinc-500 hover:text-zinc-300 p-1 -m-1"
+              className="text-zinc-500 hover:text-zinc-300 p-0.5"
             >
               {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <FaGithub size={14} className="text-zinc-500 shrink-0" /> GitHub: <TermLink href={GITHUB_URL}>Dev-Harry-Code</TermLink>
+            <FaGithub size={13} className="text-zinc-500 shrink-0" /> GitHub: <TermLink href={GITHUB_URL}>Dev-Harry-Code</TermLink>
           </div>
           <div className="flex items-center gap-2">
-            <FaLinkedin size={14} className="text-zinc-500 shrink-0" /> LinkedIn: <TermLink href={LINKEDIN_URL}>devharry</TermLink>
+            <FaLinkedin size={13} className="text-zinc-500 shrink-0" /> LinkedIn: <TermLink href={LINKEDIN_URL}>devharry</TermLink>
           </div>
         </div>
       ),
@@ -202,8 +200,8 @@ export default function AboutSection(): React.ReactElement {
 ██║  ██║█████╗  ██║   ██║███████║███████║██████╔╝██████╔╝ ╚████╔╝ ██║     ██║   ██║██║  ██║█████╗     
 ██║  ██║██╔══╝  ╚██╗ ██╔╝██╔══██║██╔══██║██╔══██╗██╔══██╗  ╚██╔╝  ██║     ██║   ██║██║  ██║██╔══╝     
 ██████╔╝███████╗ ╚████╔╝ ██║  ██║██║  ██║██║  ██║██║  ██║   ██║   ╚██████╗╚██████╔╝██████╔╝███████╗██╗
-╚═════╝ ╚══════╝  ╚═══╝  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚══════╝ ╚══════╝╚══════╝╚═╝
-`;
+╚═════╝ ╚══════╝  ╚═══╝  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝
+  `;
 
   const MATRIX_CHARS = '01#$@%&*<>?/\\█▓▒░';
 
@@ -402,8 +400,8 @@ export default function AboutSection(): React.ReactElement {
             <span className="text-zinc-500 hidden sm:inline"> — clear this terminal</span>
             <span className="text-zinc-500 sm:hidden"> clear terminal</span>
           </div>
-          <div className="pt-2 text-[11px] sm:text-xs text-zinc-500">
-            Tip: press Tab to autocomplete. There may be a few more commands not listed here.
+          <div className="pt-1.5 text-[11px] sm:text-xs text-zinc-500">
+            Tip: press Tab to autocomplete.
           </div>
         </div>
       );
@@ -447,7 +445,7 @@ export default function AboutSection(): React.ReactElement {
       'Command Not Found',
       <>
         <span className="text-zinc-100">{raw}</span>: command not found — type{' '}
-        <code className="text-emerald-400">/help</code> for a list of things I respond to.
+        <code className="text-emerald-400">/help</code> for a list of commands.
       </>,
       'error'
     );
@@ -493,7 +491,7 @@ export default function AboutSection(): React.ReactElement {
 
   const getContainerStyles = () => {
     if (windowState === 'maximized') return 'fixed inset-2 sm:inset-4 z-50 flex flex-col max-w-none h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)]';
-    if (windowState === 'minimized') return 'w-full max-w-5xl min-h-0';
+    if (windowState === 'minimized') return 'w-full max-w-5xl h-[36px] overflow-hidden';
     return 'w-full max-w-5xl h-[520px] sm:h-[650px] flex flex-col';
   };
 
@@ -516,53 +514,63 @@ export default function AboutSection(): React.ReactElement {
         <Card
           ref={sectionRef}
           className={cn(
-            'relative overflow-hidden gap-0 rounded-lg border-zinc-700 bg-zinc-950 font-mono text-xs sm:text-sm text-zinc-200 shadow-none transition-all duration-300',
+            'relative p-0 overflow-hidden gap-0 rounded-xl border border-zinc-800 bg-zinc-950/95 font-mono text-xs sm:text-sm text-zinc-200 shadow-2xl transition-all duration-300 backdrop-blur-sm',
             getContainerStyles()
           )}
         >
-          {/* Terminal Title Bar */}
-          <div className="flex items-center justify-between border-b border-zinc-800 p-3 sm:p-4 pb-2.5 sm:pb-3">
-            <div className="flex items-center gap-2">
+          {/* macOS Window Title Bar */}
+          <div className="relative flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/60 px-3 py-2 select-none group">
+            {/* macOS Window Dots Controls */}
+            <div className="flex items-center gap-2 z-10">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     onClick={() => setWindowState('normal')}
-                    className="h-3 w-3 rounded-full bg-red-500/80 transition-colors hover:bg-red-500"
-                  />
+                    className="h-3 w-3 rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center text-zinc-950 opacity-90 hover:opacity-100 transition-opacity"
+                  >
+                    <X size={8} className="opacity-0 group-hover:opacity-100 stroke-[3]" />
+                  </button>
                 </TooltipTrigger>
-                <TooltipContent>Reset</TooltipContent>
+                <TooltipContent>Close</TooltipContent>
               </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     onClick={toggleMinimize}
-                    className="h-3 w-3 rounded-full bg-yellow-500/80 transition-colors hover:bg-yellow-500"
-                  />
+                    className="h-3 w-3 rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center text-zinc-950 opacity-90 hover:opacity-100 transition-opacity"
+                  >
+                    <Minus size={8} className="opacity-0 group-hover:opacity-100 stroke-[3]" />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent>{windowState === 'minimized' ? 'Restore' : 'Minimize'}</TooltipContent>
               </Tooltip>
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     onClick={toggleMaximize}
-                    className="h-3 w-3 rounded-full bg-emerald-500/80 transition-colors hover:bg-emerald-500"
-                  />
+                    className="h-3 w-3 rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center text-zinc-950 opacity-90 hover:opacity-100 transition-opacity"
+                  >
+                    <Plus size={8} className="opacity-0 group-hover:opacity-100 stroke-[3]" />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent>{windowState === 'maximized' ? 'Restore' : 'Maximize'}</TooltipContent>
               </Tooltip>
-              <span className="ml-1 sm:ml-2 text-[11px] sm:text-xs text-zinc-400 truncate max-w-[140px] sm:max-w-none">
-                devharrycode@terminal:~
+            </div>
+
+            {/* Window Center Title */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span className="text-[11px] font-medium text-zinc-400 font-sans tracking-wide">
+                devharrycode — -zsh
               </span>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3">
-              <span className="text-xs text-zinc-600 hidden sm:inline">
-                {windowState === 'minimized' && '[Minimized]'}
-                {windowState === 'maximized' && '[Maximized]'}
-              </span>
+            {/* Right Side Options */}
+            <div className="flex items-center gap-2 z-10">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -570,9 +578,9 @@ export default function AboutSection(): React.ReactElement {
                     variant="ghost"
                     size="icon"
                     onClick={() => setSoundOn((s) => !s)}
-                    className="h-6 w-6 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+                    className="h-5 w-5 text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300 rounded p-0"
                   >
-                    {soundOn ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                    {soundOn ? <Volume2 size={13} /> : <VolumeX size={13} />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{soundOn ? 'Mute sound' : 'Unmute sound'}</TooltipContent>
@@ -581,11 +589,11 @@ export default function AboutSection(): React.ReactElement {
           </div>
 
           {windowState !== 'minimized' && (
-            <CardContent className="flex flex-1 min-h-0 flex-col p-0">
-              {/* Native Auto-overflow Scroll Container */}
+            <CardContent className="flex flex-1 min-h-0 flex-col p-0 bg-zinc-950">
+              {/* Terminal Content Container */}
               <div 
                 ref={scrollAreaRef} 
-                className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 pt-3 sm:pt-4"
+                className="flex-1 min-h-0 overflow-y-auto px-4 py-3"
               >
                 <div className="relative min-h-[70px] sm:min-h-[120px] overflow-x-auto no-scrollbar">
                   <pre
@@ -600,12 +608,12 @@ export default function AboutSection(): React.ReactElement {
                   </pre>
                 </div>
 
-                <div className="mt-3 sm:mt-4 text-[11px] sm:text-xs text-zinc-400">
-                  <p className="mb-2">
+                <div className="mt-2 text-[11px] sm:text-xs text-zinc-400">
+                  <p className="mb-1.5">
                     <span className="hidden md:inline">Type <span className="font-bold text-zinc-100">/</span> to run commands:</span>
                     <span className="md:hidden">Tap a command below to run:</span>
                   </p>
-                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {VISIBLE_COMMANDS.map((c) => (
                       <React.Fragment key={c}>
                         {/* Mobile: Interactive Click Chip */}
@@ -618,8 +626,8 @@ export default function AboutSection(): React.ReactElement {
                           /{c}
                         </button>
 
-                        {/* Desktop: Static Visual Pill (Non-Clickable) */}
-                        <span className="hidden md:inline-block rounded bg-zinc-900 border border-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-400 select-none cursor-default">
+                        {/* Desktop: Static Visual Pill */}
+                        <span className="hidden md:inline-block rounded bg-zinc-900/80 border border-zinc-800/80 px-1.5 py-0.5 text-[11px] text-zinc-400 select-none cursor-default">
                           /{c}
                         </span>
                       </React.Fragment>
@@ -627,19 +635,22 @@ export default function AboutSection(): React.ReactElement {
                   </div>
                 </div>
 
-                {/* History list with ResizeObserver attached */}
-                <div ref={historyContainerRef} className="my-3 sm:my-4 space-y-3 pb-6">
+                {/* History list */}
+                <div ref={historyContainerRef} className="my-3 space-y-2.5 pb-4">
                   {history.map((entry) => (
                     <div key={entry.id}>
                       <div className="text-zinc-500 text-[11px] sm:text-xs">
-                        <span className="text-zinc-400">devharrycode:~$</span> /{entry.command}
+                        <span className="text-emerald-400">devharrycode</span>
+                        <span className="text-zinc-600">:</span>
+                        <span className="text-blue-400 font-semibold">~</span>
+                        <span className="text-zinc-400">$</span> /{entry.command}
                       </div>
                       <div
                         className={cn(
-                          'mt-1 rounded-md border p-3 sm:p-4',
+                          'mt-1 rounded-lg border px-3 py-2.5 sm:px-4 sm:py-3',
                           entry.tone === 'error'
-                            ? 'border-red-900/60 bg-red-950/20'
-                            : 'border-zinc-800 bg-zinc-900/60'
+                            ? 'border-red-900/40 bg-red-950/20'
+                            : 'border-zinc-800/80 bg-zinc-900/40'
                         )}
                       >
                         <div className={cn('font-bold text-xs sm:text-sm', entry.tone === 'error' ? 'text-red-400' : 'text-zinc-100')}>
@@ -652,13 +663,13 @@ export default function AboutSection(): React.ReactElement {
                 </div>
               </div>
 
-              {/* Translucent Dock Input */}
+              {/* Translucent macOS Prompt Input */}
               <form
                 onSubmit={handleSubmit}
-                className="sticky bottom-0 z-10 flex items-center gap-1.5 sm:gap-2 border-t border-zinc-800/80 bg-zinc-950/80 px-3 sm:px-6 py-2.5 sm:py-4 backdrop-blur-md"
+                className="sticky bottom-0 z-10 flex items-center gap-1.5 border-t border-zinc-800/80 bg-zinc-950 px-4 py-2.5 backdrop-blur-md"
               >
-                <span className="font-bold text-xs sm:text-sm text-zinc-400 shrink-0">
-                  devharrycode<span className="text-zinc-100">:~$</span>
+                <span className="font-bold text-xs sm:text-sm text-emerald-400 shrink-0">
+                  devharrycode<span className="text-zinc-600">:</span><span className="text-blue-400">~</span><span className="text-zinc-200">$</span>
                 </span>
                 <div className="relative flex-1 min-w-0">
                   <Input
@@ -684,7 +695,7 @@ export default function AboutSection(): React.ReactElement {
                     <span className="pointer-events-none absolute left-0 top-0 text-xs sm:text-sm text-zinc-600 truncate max-w-full">
                       <span className="opacity-0">{query}</span>
                       {suggestion.slice(query.length)}
-                      <span className="ml-2 sm:ml-3 text-[10px] sm:text-xs text-zinc-500 hidden sm:inline">[Press Tab]</span>
+                      <span className="ml-2 text-[10px] sm:text-xs text-zinc-500 hidden sm:inline">[Tab]</span>
                     </span>
                   )}
                 </div>
