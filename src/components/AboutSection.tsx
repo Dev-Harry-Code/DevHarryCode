@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useShaderExclude } from "@/components/ShaderExcludeContext";
-import { MapPin, Mail, Volume2, VolumeX, Copy, Check, X, Minus, Plus } from 'lucide-react';
+import { MapPin, Mail, Volume2, VolumeX, Copy, Check, X, Minus, Plus, Command } from 'lucide-react';
 import { FaGithub, FaLinkedin } from 'react-icons/fa6';
 
 import { Card, CardContent } from '@/components/ui/card';
@@ -61,6 +62,7 @@ export default function AboutSection(): React.ReactElement {
   const historyContainerRef = useRef<HTMLDivElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const bootTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [query, setQuery] = useState('');
   const [windowState, setWindowState] = useState<'normal' | 'minimized' | 'maximized'>('normal');
@@ -68,11 +70,13 @@ export default function AboutSection(): React.ReactElement {
   const [copied, setCopied] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [isAutoTyping, setIsAutoTyping] = useState(false);
+  const [isBooting, setIsBooting] = useState(false);
+  const [terminalReady, setTerminalReady] = useState(false);
   const [history, setHistory] = useState<
     { id: number; command: string; title: string; body: React.ReactNode; tone: 'normal' | 'error' }[]
   >([]);
 
-  const SECTIONS: Record<string, Section> = {
+  const SECTIONS = useMemo<Record<string, Section>>(() => ({
     bio: {
       title: 'Background & Bio',
       body: (
@@ -192,16 +196,16 @@ export default function AboutSection(): React.ReactElement {
         </div>
       ),
     },
-  };
+  }), [copied]);
 
-  const TARGET_ASCII = `
+  const TARGET_ASCII = useMemo(() => `
 ██████╗ ███████╗██╗   ██╗██╗  ██╗ █████╗ ██████╗ ██████╗ ██╗   ██╗ ██████╗ ██████╗ ██████╗ ███████╗   
 ██╔══██╗██╔════╝██║   ██║██║  ██║██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝██╔════╝██╔═══██╗██╔══██╗██╔════╝   
 ██║  ██║█████╗  ██║   ██║███████║███████║██████╔╝██████╔╝ ╚████╔╝ ██║     ██║   ██║██║  ██║█████╗     
 ██║  ██║██╔══╝  ╚██╗ ██╔╝██╔══██║██╔══██║██╔══██╗██╔══██╗  ╚██╔╝  ██║     ██║   ██║██║  ██║██╔══╝     
 ██████╔╝███████╗ ╚████╔╝ ██║  ██║██║  ██║██║  ██║██║  ██║   ██║   ╚██████╗╚██████╔╝██████╔╝███████╗██╗
 ╚═════╝ ╚══════╝  ╚═══╝  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝
-  `;
+  `, []);
 
   const MATRIX_CHARS = '01#$@%&*<>?/\\█▓▒░';
 
@@ -211,7 +215,8 @@ export default function AboutSection(): React.ReactElement {
 
   const getCtx = useCallback(() => {
     if (!audioCtxRef.current) {
-      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      const AC = window.AudioContext ||
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       audioCtxRef.current = new AC();
     }
     if (audioCtxRef.current.state === 'suspended') {
@@ -251,18 +256,14 @@ export default function AboutSection(): React.ReactElement {
       (entries) => {
         const [entry] = entries;
         if (entry.isIntersecting && !hasAnimated) {
-          setIsAnimating(true);
+          setIsBooting(true);
+          if (bootTimerRef.current) clearTimeout(bootTimerRef.current);
           setHasAnimated(true);
-
-          if (inputRef.current && window.innerWidth >= 768) {
-            inputRef.current.focus({ preventScroll: true });
-          }
 
           const lines = TARGET_ASCII.split('\n');
           const totalLines = lines.length;
           let frame = 0;
           const totalFrames = 45;
-          let animationFrameId: number;
 
           const animate = () => {
             frame++;
@@ -292,23 +293,32 @@ export default function AboutSection(): React.ReactElement {
             setDisplayedAscii(animatedLines.join('\n'));
 
             if (frame < totalFrames) {
-              animationFrameId = requestAnimationFrame(animate);
+              requestAnimationFrame(animate);
             } else {
               setDisplayedAscii(TARGET_ASCII);
               setIsAnimating(false);
+              if (inputRef.current && window.innerWidth >= 768) {
+                inputRef.current.focus({ preventScroll: true });
+              }
             }
           };
 
-          animationFrameId = requestAnimationFrame(animate);
-          return () => cancelAnimationFrame(animationFrameId);
+          bootTimerRef.current = setTimeout(() => {
+            setIsBooting(false);
+            setTerminalReady(true);
+            setIsAnimating(true);
+            requestAnimationFrame(animate);
+          }, 1600);
         }
       },
-      { threshold: 0.3 }
+      { threshold: 0.78 }
     );
 
     if (sectionRef.current) observer.observe(sectionRef.current);
-    return () => observer.disconnect();
-  }, [hasAnimated]);
+    return () => {
+      observer.disconnect();
+    };
+  }, [TARGET_ASCII, hasAnimated]);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -337,6 +347,7 @@ export default function AboutSection(): React.ReactElement {
   useEffect(() => {
     return () => {
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      if (bootTimerRef.current) clearTimeout(bootTimerRef.current);
     };
   }, []);
 
@@ -502,12 +513,20 @@ export default function AboutSection(): React.ReactElement {
           0%, 49% { opacity: 1; }
           50%, 100% { opacity: 0; }
         }
+        @keyframes boot-fill {
+          from { transform: scaleX(0); }
+          to { transform: scaleX(1); }
+        }
       `}</style>
-      <section
+      <motion.section
         ref={AboutRef}
         id="about"
+        initial={{ opacity: 0, y: 44, filter: 'blur(12px)' }}
+        whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+        viewport={{ once: false, amount: 0.2 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
         className={cn(
-          'flex w-full items-center justify-center p-2 sm:p-4 transition-all duration-300',
+          'scroll-mt-24 flex w-full items-center justify-center p-2 sm:p-4 transition-all duration-300',
           windowState === 'maximized' ? 'min-h-screen' : 'min-h-[520px] sm:min-h-[650px]'
         )}
       >
@@ -518,6 +537,26 @@ export default function AboutSection(): React.ReactElement {
             getContainerStyles()
           )}
         >
+          <AnimatePresence>
+            {isBooting && (
+              <motion.div
+                initial={{ opacity: 0, filter: 'blur(8px)' }}
+                animate={{ opacity: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, filter: 'blur(8px)' }}
+                transition={{ duration: 0.35 }}
+                className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-zinc-950 text-zinc-100"
+              >
+                <Command className="h-12 w-12 text-white drop-shadow-[0_0_18px_rgba(255,255,255,0.55)]" strokeWidth={1.5} />
+                <div className="w-44 sm:w-56">
+                  <div className="h-1 overflow-hidden rounded-full bg-zinc-800">
+                    <div className="h-full origin-left animate-[boot-fill_1.6s_ease-out_forwards] rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)]" />
+                  </div>
+                  <p className="mt-2 text-center text-[9px] uppercase tracking-[0.3em] text-zinc-500">starting session</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* macOS Window Title Bar */}
           <div className="relative flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/60 px-3 py-2 select-none group">
             {/* macOS Window Dots Controls */}
@@ -588,7 +627,7 @@ export default function AboutSection(): React.ReactElement {
             </div>
           </div>
 
-          {windowState !== 'minimized' && (
+          {windowState !== 'minimized' && terminalReady && (
             <CardContent className="flex flex-1 min-h-0 flex-col p-0 bg-zinc-950">
               {/* Terminal Content Container */}
               <div 
@@ -600,7 +639,7 @@ export default function AboutSection(): React.ReactElement {
                     className={cn(
                       'text-[6px] xs:text-[8px] sm:text-xs leading-tight transition-colors duration-500 select-none',
                       isAnimating
-                        ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]'
+                        ? 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.35)]'
                         : 'text-zinc-300'
                     )}
                   >
@@ -608,6 +647,7 @@ export default function AboutSection(): React.ReactElement {
                   </pre>
                 </div>
 
+                {!isAnimating && <>
                 <div className="mt-2 text-[11px] sm:text-xs text-zinc-400">
                   <p className="mb-1.5">
                     <span className="hidden md:inline">Type <span className="font-bold text-zinc-100">/</span> to run commands:</span>
@@ -661,10 +701,11 @@ export default function AboutSection(): React.ReactElement {
                     </div>
                   ))}
                 </div>
+                </>}
               </div>
 
               {/* Translucent macOS Prompt Input */}
-              <form
+              {!isAnimating && <form
                 onSubmit={handleSubmit}
                 className="sticky bottom-0 z-10 flex items-center gap-1.5 border-t border-zinc-800/80 bg-zinc-950 px-4 py-2.5 backdrop-blur-md"
               >
@@ -699,11 +740,11 @@ export default function AboutSection(): React.ReactElement {
                     </span>
                   )}
                 </div>
-              </form>
+              </form>}
             </CardContent>
           )}
         </Card>
-      </section>
+      </motion.section>
     </TooltipProvider>
   );
 }

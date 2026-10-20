@@ -16,6 +16,7 @@ export default function PhotosensitiveWarning() {
 
   const dismissWarning = () => {
     localStorage.setItem("photosensitive-warning", "true");
+    window.dispatchEvent(new Event("portfolio:media-consent"));
     setShowWarning(false);
   };
 

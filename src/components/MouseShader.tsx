@@ -413,9 +413,16 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
     let animationFrameId: number;
     let currentEnabled = enabledFactorRef.current;
     let visible = true;
+    let lastFrameTime = -1;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotionPreference = () => {
+      visible = document.visibilityState === "visible" && !motionQuery.matches;
+      if (visible && lastFrameTime < 0) lastFrameTime = performance.now();
+    };
+    updateMotionPreference();
+    motionQuery.addEventListener("change", updateMotionPreference);
     let scrolling = false;
     let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
-    let lastFrameTime = -1;
 
     const FRAME_INTERVAL = 1000 / 60;
 
@@ -527,7 +534,7 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
     }
 
     const handleVisibilityChange = () => {
-      visible = document.visibilityState === "visible";
+      visible = document.visibilityState === "visible" && !motionQuery.matches;
       if (visible && lastFrameTime < 0) {
         lastFrameTime = performance.now();
       }
@@ -562,6 +569,7 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
       window.removeEventListener("scroll", handleScrollStop);
       visibilityObserver.disconnect();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      motionQuery.removeEventListener("change", updateMotionPreference);
       resizeObserver.disconnect();
       if (parentDiv) {
         parentDiv.removeEventListener("pointermove", handlePointerMove);

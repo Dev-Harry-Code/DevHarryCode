@@ -7,8 +7,6 @@ import {
   ArrowUpRight,
   User,
   FolderGit2,
-  BriefcaseBusiness,
-  Mail,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -24,16 +22,6 @@ const navItems = [
     label: "Projects",
     href: "#projects",
     icon: FolderGit2,
-  },
-  {
-    label: "Experience",
-    href: "#experience",
-    icon: BriefcaseBusiness,
-  },
-  {
-    label: "Contact",
-    href: "#contact",
-    icon: Mail,
   },
 ];
 
@@ -52,6 +40,15 @@ export default function Navbar() {
 
 
   useEffect(() => {
+    const syncHash = () => {
+      if (window.location.hash && navItems.some((item) => item.href === window.location.hash)) {
+        setActive(window.location.hash);
+      }
+    };
+
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+
     const sections = navItems
       .map((item) => document.querySelector(item.href))
       .filter(Boolean);
@@ -66,7 +63,8 @@ export default function Navbar() {
         });
       },
       {
-        threshold: 0.45,
+        rootMargin: "-15% 0px -60% 0px",
+        threshold: 0,
       }
     );
 
@@ -76,7 +74,10 @@ export default function Navbar() {
     });
 
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("hashchange", syncHash);
+    };
   }, []);
 
 
@@ -142,6 +143,7 @@ export default function Navbar() {
                   key={item.href}
                   href={item.href}
                   className="nav-link"
+                  aria-current={active === item.href ? "location" : undefined}
                 >
                   {item.label}
                 </Link>
@@ -154,7 +156,7 @@ export default function Navbar() {
             {/* CTA */}
 
             <Link
-              href="#contact"
+              href="mailto:dev.harshalsharma@gmail.com"
               className="
               hidden md:inline-flex
               liquid-btn
@@ -177,17 +179,17 @@ export default function Navbar() {
 
       {/* Mobile Bottom Liquid Navigation */}
 
-      <div
+      <nav
       ref={mobileNavRef}
         className="
         fixed
         bottom-5
         inset-x-0
-        z-60
+        z-[60]
         flex
         justify-center
         md:hidden
-        px-4
+        px-4 pb-[env(safe-area-inset-bottom)]
         pointer-events-none
         "
       >
@@ -237,6 +239,8 @@ export default function Navbar() {
                     key={item.href}
                     href={item.href}
                     onClick={() => setActive(item.href)}
+                    aria-label={item.label}
+                    aria-current={selected ? "location" : undefined}
                   >
 
                     <motion.div
@@ -250,6 +254,8 @@ export default function Navbar() {
                         `
   relative
   flex
+  min-h-11
+  min-w-11
   items-center
   gap-2
   rounded-full
@@ -352,7 +358,7 @@ export default function Navbar() {
         </motion.div>
 
 
-      </div>
+      </nav>
 
     </>
   );

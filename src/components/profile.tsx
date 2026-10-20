@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
@@ -12,13 +11,16 @@ import {
 } from "framer-motion";
 
 export default function InteractiveProfileCard() {
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [reducedMotion, setReducedMotion] = useState(false);
+  const cardRef = useRef<HTMLButtonElement>(null);
+  const [reducedMotion, setReducedMotion] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
   const [active, setActive] = useState(false);
+  const [focusBurst, setFocusBurst] = useState(false);
+  const [frameMode, setFrameMode] = useState(0);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReducedMotion(mq.matches);
     const handler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
@@ -66,7 +68,7 @@ export default function InteractiveProfileCard() {
   );
   const ringBackground = useMotionTemplate`conic-gradient(from ${ringAngle}deg, transparent 0deg, rgba(255,255,255,0.9) 18deg, transparent 60deg)`;
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!cardRef.current || reducedMotion) return;
     const rect = cardRef.current.getBoundingClientRect();
     x.set((e.clientX - rect.left) / rect.width - 0.5);
@@ -79,8 +81,25 @@ export default function InteractiveProfileCard() {
     setActive(false);
   };
 
+  const toggleFocusBurst = () => {
+    setFrameMode((current) => (current + 1) % 5);
+    setFocusBurst((current) => !current);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleFocusBurst();
+    }
+  };
+
   return (
-    <div className="relative mt-10 flex justify-center perspective-[1700px]">
+    <motion.div
+      initial={reducedMotion ? false : { opacity: 0, y: 34, scale: 0.88, filter: "blur(14px)" }}
+      animate={reducedMotion ? {} : { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+      transition={{ duration: 0.9, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+      className="relative mt-10 flex justify-center perspective-[1700px]"
+    >
       <motion.div
         animate={reducedMotion ? {} : { y: active ? 0 : [-7, 7, -7] }}
         transition={{
@@ -89,12 +108,26 @@ export default function InteractiveProfileCard() {
           ease: "easeInOut",
         }}
       >
-        <motion.div
+        <motion.button
+          type="button"
           ref={cardRef}
           onPointerMove={handlePointerMove}
           onPointerEnter={() => setActive(true)}
           onPointerLeave={handlePointerLeave}
-          whileTap={{ scale: 0.97 }}
+          onClick={toggleFocusBurst}
+          onKeyDown={handleKeyDown}
+          role="button"
+          aria-label="Interactive profile photo. Activate to cycle its 3D frame."
+          aria-pressed={focusBurst}
+          whileTap={{ scale: 0.96 }}
+          animate={
+            reducedMotion
+              ? {}
+              : focusBurst
+                ? { rotateZ: 1.5, scale: 1.04 }
+                : { rotateZ: 0, scale: 1 }
+          }
+          transition={{ type: "spring", stiffness: 240, damping: 18 }}
           style={{
             rotateX: reducedMotion ? 0 : rotateX,
             rotateY: reducedMotion ? 0 : rotateY,
@@ -102,8 +135,78 @@ export default function InteractiveProfileCard() {
             filter: reducedMotion ? "none" : dropShadow,
             touchAction: "none",
           }}
-          className="group relative h-86 w-72.5 cursor-pointer rounded-[32px]"
+          className="group relative h-86 w-72.5 cursor-pointer rounded-[32px] border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/80 focus-visible:ring-offset-4 focus-visible:ring-offset-black"
         >
+          {/* Clickable 3D frame variants: cube, stack, orbit and flip frames. */}
+          {frameMode === 1 && (
+            <>
+              <motion.div
+                aria-hidden="true"
+                initial={{ opacity: 0, rotateY: -70 }}
+                animate={{ opacity: 1, rotateY: -90 }}
+                className="pointer-events-none absolute inset-y-3 -left-4 w-4 origin-right border border-white/20 bg-white/[0.08]"
+                style={{ transformStyle: "preserve-3d" }}
+              />
+              <motion.div
+                aria-hidden="true"
+                initial={{ opacity: 0, rotateY: 70 }}
+                animate={{ opacity: 1, rotateY: 90 }}
+                className="pointer-events-none absolute inset-y-3 -right-4 w-4 origin-left border border-white/20 bg-white/[0.08]"
+                style={{ transformStyle: "preserve-3d" }}
+              />
+              <motion.div
+                aria-hidden="true"
+                initial={{ opacity: 0, rotateX: 70 }}
+                animate={{ opacity: 1, rotateX: 90 }}
+                className="pointer-events-none absolute -top-4 inset-x-3 h-4 origin-bottom border border-white/20 bg-white/[0.1]"
+                style={{ transformStyle: "preserve-3d" }}
+              />
+              <motion.div
+                aria-hidden="true"
+                initial={{ opacity: 0, rotateX: -70 }}
+                animate={{ opacity: 1, rotateX: -90 }}
+                className="pointer-events-none absolute -bottom-4 inset-x-3 h-4 origin-top border border-white/20 bg-white/[0.1]"
+                style={{ transformStyle: "preserve-3d" }}
+              />
+            </>
+          )}
+
+          {frameMode === 2 && (
+            <>
+              <motion.div
+                aria-hidden="true"
+                initial={{ opacity: 0, x: -16, y: 10, rotateZ: -4 }}
+                animate={{ opacity: 0.75, x: -16, y: 10, rotateZ: -4 }}
+                className="pointer-events-none absolute inset-0 rounded-[32px] border border-cyan-200/40 [transform:translateZ(-32px)]"
+              />
+              <motion.div
+                aria-hidden="true"
+                initial={{ opacity: 0, x: 16, y: -10, rotateZ: 4 }}
+                animate={{ opacity: 0.75, x: 16, y: -10, rotateZ: 4 }}
+                className="pointer-events-none absolute inset-0 rounded-[32px] border border-violet-200/40 [transform:translateZ(-18px)]"
+              />
+            </>
+          )}
+
+          {frameMode === 3 && (
+            <motion.div
+              aria-hidden="true"
+              initial={{ opacity: 0, rotateZ: -8, scale: 0.92 }}
+              animate={{ opacity: 0.9, rotateZ: -8, scale: 0.92 }}
+              className="pointer-events-none absolute -inset-4 rounded-[42px] border border-white/35 border-dashed [transform:translateZ(-28px)]"
+            />
+          )}
+
+          {frameMode === 4 && (
+            <motion.div
+              aria-hidden="true"
+              initial={{ opacity: 0, rotateY: 65, x: 18 }}
+              animate={{ opacity: 0.85, rotateY: 65, x: 18 }}
+              className="pointer-events-none absolute inset-2 rounded-[26px] border border-white/30 bg-white/[0.05] [transform:translateZ(-42px)]"
+              style={{ transformStyle: "preserve-3d" }}
+            />
+          )}
+
           {/* Orbiting light-trace ring — the signature element */}
           <motion.div
             style={{
@@ -117,11 +220,35 @@ export default function InteractiveProfileCard() {
             className="pointer-events-none absolute -inset-1.5 rounded-[33px] p-1.5"
           />
 
-          <div className="absolute inset-0 overflow-hidden rounded-[32px] border border-white/15 bg-black">
+          <motion.div
+            aria-hidden="true"
+            animate={
+              reducedMotion
+                ? { opacity: 0 }
+                : { opacity: focusBurst ? 0.9 : 0.3, rotateZ: focusBurst ? -4 : 0 }
+            }
+            transition={{ duration: 0.35 }}
+            className="pointer-events-none absolute -inset-5 rounded-[40px] border border-cyan-200/30 bg-cyan-300/[0.03] [transform:translateZ(-18px)]"
+          />
+
+          <motion.div
+            aria-hidden="true"
+            animate={
+              reducedMotion
+                ? { opacity: 0 }
+                : { opacity: focusBurst ? 0.65 : 0, scale: focusBurst ? 1.08 : 1 }
+            }
+            transition={{ duration: 0.3 }}
+            className="pointer-events-none absolute -inset-3 rounded-[36px] border border-violet-200/30 [transform:translateZ(12px)]"
+          />
+
+          <div
+            className="absolute inset-0 overflow-hidden rounded-[32px] border border-white/15 bg-black"
+          >
             {/* Photo, pushed slightly forward in 3D space for real depth */}
             <div
               className="absolute -inset-2.5"
-              style={{ transform: "translateZ(24px) scale(1.06)" }}
+              style={{ transform: focusBurst ? "translateZ(56px) scale(1.1)" : "translateZ(24px) scale(1.06)" }}
             >
               <Image
                 src="/profile.jpg"
@@ -146,10 +273,12 @@ export default function InteractiveProfileCard() {
             />
 
             {/* Inner hairline */}
-            <div className="pointer-events-none absolute inset-0 rounded-[32px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" />
+            <div
+              className="pointer-events-none absolute inset-0 rounded-[32px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+            />
           </div>
-        </motion.div>
+        </motion.button>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }

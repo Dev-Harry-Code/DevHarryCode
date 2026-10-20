@@ -39,6 +39,35 @@
     0 12px 32px var(--glass-shadow);
 }
 
+/* Full-bleed dotted atmosphere for glass sections. */
+.liquid-dot-field {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: #030303;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.16) 1px, transparent 0),
+    radial-gradient(circle at 80% 15%, rgba(103, 232, 249, 0.16), transparent 28rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent 45%);
+  background-size: 22px 22px, auto, auto;
+}
+
+.liquid-dot-field::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(3, 3, 3, 0.2), rgba(3, 3, 3, 0.9));
+  content: "";
+  pointer-events: none;
+}
+
+.liquid-glass-panel {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.025));
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.18), 0 24px 70px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(24px);
+}
+
 /* Nav Links */
 .nav-link {
   position: relative;

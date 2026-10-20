@@ -14,7 +14,31 @@ export default function VideoBackground() {
   const fadeRef = useRef<HTMLDivElement>(null);
 
   const [activeIdx, setActiveIdx] = useState<0 | 1>(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [mediaUnlocked, setMediaUnlocked] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotionPreference = () => setReducedMotion(mediaQuery.matches);
+    updateMotionPreference();
+    mediaQuery.addEventListener("change", updateMotionPreference);
+
+    const unlockMedia = () => {
+      setMediaUnlocked(true);
+      setIsPlaying(!mediaQuery.matches);
+    };
+
+    if (localStorage.getItem("photosensitive-warning")) {
+      unlockMedia();
+    }
+
+    window.addEventListener("portfolio:media-consent", unlockMedia);
+    return () => {
+      window.removeEventListener("portfolio:media-consent", unlockMedia);
+      mediaQuery.removeEventListener("change", updateMotionPreference);
+    };
+  }, []);
 
   // Fade the fixed video background out on scroll without re-rendering on every frame
   useEffect(() => {
@@ -49,7 +73,7 @@ export default function VideoBackground() {
     if (activeRef) {
       activeRef.currentTime = 0;
       activeRef.playbackRate = 0.8;
-      if (isPlaying) {
+      if (mediaUnlocked && isPlaying) {
         activeRef.play().catch(() => setIsPlaying(false));
       }
     }
@@ -57,9 +81,10 @@ export default function VideoBackground() {
     if (inactiveRef) {
       inactiveRef.pause();
     }
-  }, [activeIdx, isPlaying]);
+  }, [activeIdx, isPlaying, mediaUnlocked]);
 
   const togglePlayback = () => {
+    if (!mediaUnlocked) return;
     const currentRef = activeIdx === 0 ? videoRef0.current : videoRef1.current;
     if (!currentRef) return;
 
@@ -88,7 +113,7 @@ export default function VideoBackground() {
           src={videos[0]}
           muted
           playsInline
-          preload="auto"
+          preload={mediaUnlocked ? "metadata" : "none"}
           onEnded={handleVideoEnded}
           className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
             activeIdx === 0 ? "opacity-100" : "opacity-0"
@@ -101,7 +126,7 @@ export default function VideoBackground() {
           src={videos[1]}
           muted
           playsInline
-          preload="auto"
+          preload={mediaUnlocked ? "metadata" : "none"}
           onEnded={handleVideoEnded}
           className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
             activeIdx === 1 ? "opacity-100" : "opacity-0"
@@ -116,7 +141,7 @@ export default function VideoBackground() {
         aria-label={isPlaying ? "Pause video background" : "Play video background"}
         className="fixed bottom-20 right-6 z-50 rounded-full border border-white/20 bg-white/10 p-3 text-white backdrop-blur-xl transition hover:bg-white/20 sm:bottom-8 sm:right-8 sm:p-4"
       >
-        {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+        {isPlaying && !reducedMotion ? <Pause size={20} /> : <Play size={20} />}
       </button>
     </>
   );

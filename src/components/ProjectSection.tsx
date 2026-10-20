@@ -1,10 +1,10 @@
 "use client";
 import React, { useRef, useState, useMemo, useEffect } from 'react';
+import Image from 'next/image';
 import { useShaderExclude } from "@/components/ShaderExcludeContext";
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { motion, AnimatePresence, useMotionValue, useSpring, useMotionTemplate } from 'framer-motion';
-import type { TargetAndTransition } from 'framer-motion';
 import { ExternalLink, ArrowUpRight, X } from 'lucide-react';
 import { FaGithub as Github } from 'react-icons/fa';
 
@@ -90,25 +90,33 @@ const PROJECTS: Project[] = [
   },
 ];
 
-const ShaderPlane: React.FC<{ targetMouse: React.MutableRefObject<THREE.Vector2> }> = ({ targetMouse }) => {
+const ShaderPlane: React.FC<{
+  targetMouse: React.MutableRefObject<THREE.Vector2>;
+  pointerInside: React.MutableRefObject<boolean>;
+}> = ({ targetMouse, pointerInside }) => {
   const meshRef = useRef<THREE.Mesh>(null);
-  const { viewport, size } = useThree();
+  const { viewport, size, gl } = useThree();
+  const pixelRatio = gl.getPixelRatio();
 
   const uniforms = useMemo(
     () => ({
       u_time: { value: 0 },
-      u_resolution: { value: new THREE.Vector2(size.width, size.height) },
+      u_resolution: { value: new THREE.Vector2(size.width * pixelRatio, size.height * pixelRatio) },
       u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
+      u_pointerVisibility: { value: 0 },
     }),
-    [size]
+    [pixelRatio, size]
   );
 
   useFrame((state) => {
     if (!meshRef.current) return;
     const mat = meshRef.current.material as THREE.ShaderMaterial;
-    mat.uniforms.u_mouse.value.lerp(targetMouse.current, 0.55);
+    mat.uniforms.u_mouse.value.copy(targetMouse.current);
+    const visibilityTarget = pointerInside.current ? 1 : 0;
+    mat.uniforms.u_pointerVisibility.value +=
+      (visibilityTarget - mat.uniforms.u_pointerVisibility.value) * 0.12;
     mat.uniforms.u_time.value = state.clock.getElapsedTime();
-    mat.uniforms.u_resolution.value.set(size.width, size.height);
+    mat.uniforms.u_resolution.value.set(size.width * gl.getPixelRatio(), size.height * gl.getPixelRatio());
   });
 
   const vertexShader = `
@@ -123,6 +131,7 @@ const ShaderPlane: React.FC<{ targetMouse: React.MutableRefObject<THREE.Vector2>
     uniform vec2 u_resolution;
     uniform vec2 u_mouse;
     uniform float u_time;
+    uniform float u_pointerVisibility;
     varying vec2 vUv;
 
     void main() {
@@ -140,10 +149,11 @@ const ShaderPlane: React.FC<{ targetMouse: React.MutableRefObject<THREE.Vector2>
       float dist = distance(tileCenter, m);
 
       float intensity = 0.0;
-      if (dist < 0.5) {
-        float t = dist / 0.5;
+      float glowRadius = mix(0.08, 0.5, u_pointerVisibility);
+      if (u_pointerVisibility > 0.001 && dist < glowRadius) {
+        float t = dist / glowRadius;
         intensity = smoothstep(1.0, 0.0, t);
-        intensity = intensity * intensity;
+        intensity = intensity * intensity * u_pointerVisibility;
       }
 
       float border = step(0.03, gridUv.x) * step(0.03, gridUv.y) * step(gridUv.x, 0.97) * step(gridUv.y, 0.97);
@@ -173,38 +183,74 @@ const ShaderPlane: React.FC<{ targetMouse: React.MutableRefObject<THREE.Vector2>
 
 export const ProjectSection: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [inView, setInView] = useState(true);
   const projectRef = useShaderExclude<HTMLDivElement>("projectRef");
   const targetMouse = useRef(new THREE.Vector2(0.5, 0.5));
+  const pointerInside = useRef(false);
   const sectionRef = useRef<HTMLElement>(null);
+  const [canvasVisible, setCanvasVisible] = useState(false);
+  const isScrolling = useRef(false);
+  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
+    const handleScroll = () => {
+      isScrolling.current = true;
+      if (scrollTimer.current) clearTimeout(scrollTimer.current);
+      scrollTimer.current = setTimeout(() => {
+        isScrolling.current = false;
+      }, 90);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollTimer.current) clearTimeout(scrollTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
     const observer = new IntersectionObserver(
-      (entries) => setInView(entries[0]?.isIntersecting ?? false),
-      { rootMargin: "300px" }
+      ([entry]) => setCanvasVisible(entry.isIntersecting),
+      { rootMargin: '120px 0px', threshold: 0.01 }
     );
-    observer.observe(el);
+
+    observer.observe(section);
     return () => observer.disconnect();
   }, []);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isScrolling.current) return;
+    pointerInside.current = true;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = 1.0 - (e.clientY - rect.top) / rect.height;
     targetMouse.current.set(x, y);
   };
 
+  const handlePointerLeave = () => {
+    pointerInside.current = false;
+  };
+
   return (
     <section 
       ref={sectionRef}
+      id="projects"
       onPointerMove={handlePointerMove}
-      className="dark relative min-h-screen w-full bg-[#030303] text-foreground py-20 px-6 select-none [mask-image:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)] [WebkitMaskImage:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)]"
+      onPointerLeave={handlePointerLeave}
+      className="dark relative min-h-screen w-full scroll-mt-24 bg-[#030303] py-20 px-6 text-foreground select-none [mask-image:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)] [WebkitMaskImage:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)]"
     >
       <div ref={projectRef} className="absolute inset-0 pointer-events-none z-0">
-        <Canvas frameloop={inView ? "always" : "never"} camera={{ position: [0, 0, 1] }} gl={{ alpha: true }}>
-          <ShaderPlane targetMouse={targetMouse} />
+        <Canvas
+          frameloop={canvasVisible ? "always" : "never"}
+          dpr={[1, 1.25]}
+          performance={{ min: 0.5, max: 1, debounce: 200 }}
+          camera={{ position: [0, 0, 1] }}
+          gl={{ alpha: true, antialias: false, powerPreference: "default" }}
+          style={{ display: "block", willChange: "transform" }}
+        >
+          <ShaderPlane targetMouse={targetMouse} pointerInside={pointerInside} />
         </Canvas>
       </div>
 
@@ -256,7 +302,6 @@ interface CardProps {
 
 const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
   const cardRef = useRef<HTMLDivElement>(null);
-  const isTiltCard = project.hoverVariant === 'tilt';
 
   // High-performance hardware accelerated Framer Motion Values
   const mouseX = useMotionValue(0);
@@ -270,7 +315,7 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
   const glowBg = useMotionTemplate`radial-gradient(350px circle at ${mouseX}px ${mouseY}px, rgba(255, 255, 255, 0.18), transparent 80%)`;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isTiltCard || !cardRef.current) return;
+    if (!cardRef.current) return;
 
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -287,20 +332,8 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
   };
 
   const handleMouseLeave = () => {
-    if (!isTiltCard) return;
     rotateX.set(0);
     rotateY.set(0);
-  };
-
-  const getHoverAnimation = (): TargetAndTransition => {
-    switch (project.hoverVariant) {
-      case 'verticalLift':
-        return { y: -8, transition: { duration: 0.25 } };
-      case 'scaleRotate':
-        return { scale: 1.02, rotate: 0.5, transition: { duration: 0.25 } };
-      default:
-        return {};
-    }
   };
 
   return (
@@ -309,13 +342,22 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onClick={onSelect}
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open details for ${project.title}`}
+      initial={{ opacity: 0, y: 42, filter: 'blur(12px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={{ once: false, amount: 0.2 }}
       transition={{ delay: index * 0.08, duration: 0.5 }}
-      whileHover={getHoverAnimation()}
       style={{
-        rotateX: isTiltCard ? rotateX : 0,
-        rotateY: isTiltCard ? rotateY : 0,
+        rotateX,
+        rotateY,
         transformStyle: 'preserve-3d',
         perspective: 1000,
       }}
@@ -325,32 +367,31 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
         relative group cursor-pointer rounded-2xl
         backdrop-blur-xl flex flex-col justify-between
         transition-shadow duration-300 ease-out
-        ${isTiltCard ? 'hover:shadow-[0_30px_60px_rgba(0,0,0,0.9),0_0_50px_rgba(255,255,255,0.15)]' : 'overflow-hidden'}
-        ${project.hoverVariant === 'borderPulse' ? 'hover:border-primary/60 hover:shadow-[0_0_30px_rgba(99,102,241,0.2)]' : ''}
+        hover:shadow-[0_30px_60px_rgba(0,0,0,0.9),0_0_50px_rgba(255,255,255,0.15)]
       `}
     >
       <div 
         className="absolute inset-0 z-0 rounded-2xl overflow-hidden transition-transform duration-500 ease-out group-hover:[transform:translateZ(-20px)]"
-        style={{ transformStyle: 'preserve-3d' }}
+        style={{
+          transformStyle: 'preserve-3d',
+          clipPath: 'inset(0 round 1rem)',
+          willChange: 'transform',
+        }}
       >
-        <img
+        <Image
           src={project.imageUrl}
           alt={project.title}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 66vw, 900px"
           className="w-full h-full object-cover object-center opacity-25 group-hover:opacity-40 group-hover:scale-110 transition-all duration-700 ease-out"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-[#030303]/80 to-transparent" />
       </div>
 
-      {isTiltCard && (
-        <motion.div
-          className="pointer-events-none absolute -inset-px opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl z-10 [transform:translateZ(10px)]"
-          style={{ background: glowBg }}
-        />
-      )}
-
-      {project.hoverVariant === 'colorSweep' && (
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-10 rounded-2xl" />
-      )}
+      <motion.div
+        className="pointer-events-none absolute -inset-px z-10 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 [transform:translateZ(10px)]"
+        style={{ background: glowBg }}
+      />
 
       <div 
         className="relative z-20 p-6 flex items-center justify-between transition-transform duration-500 ease-out group-hover:[transform:translateZ(50px)]"
@@ -402,6 +443,21 @@ interface ModalProps {
 }
 
 const Modal: React.FC<ModalProps> = ({ project, onClose }) => {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
   return (
     <div className="dark fixed inset-0 z-50 flex items-center justify-center p-4">
       <motion.div
@@ -417,14 +473,19 @@ const Modal: React.FC<ModalProps> = ({ project, onClose }) => {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`project-dialog-${project.id}`}
         className="liquid-glass-3d relative z-10 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl backdrop-blur-2xl"
       >
         <div className="relative h-48 w-full overflow-hidden">
-          <img src={project.imageUrl} alt={project.title} className="w-full h-full object-cover" />
+          <Image src={project.imageUrl} alt={project.title} fill sizes="(max-width: 768px) 100vw, 672px" className="object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#030303] via-[#030303]/50 to-transparent" />
           
           <button
+            type="button"
             onClick={onClose}
+            aria-label={`Close ${project.title} details`}
             className="absolute top-4 right-4 p-2 rounded-full border border-white/20 bg-white/10 text-white hover:bg-white hover:text-black transition-colors"
           >
             <X className="w-5 h-5" />
@@ -436,7 +497,7 @@ const Modal: React.FC<ModalProps> = ({ project, onClose }) => {
             {project.category}
           </span>
 
-          <h3 className="text-3xl font-bold text-foreground mt-3 mb-4">{project.title}</h3>
+          <h3 id={`project-dialog-${project.id}`} className="text-3xl font-bold text-foreground mt-3 mb-4">{project.title}</h3>
 
           <p className="text-muted-foreground text-base leading-relaxed mb-6">
             {project.fullDetails}

@@ -1,6 +1,6 @@
 // components/ShaderExcludeContext.tsx
 "use client";
-import { createContext, useContext, useRef, useCallback, useState, useEffect } from "react";
+import { createContext, useContext, useRef, useCallback, useEffect } from "react";
 
 type ExcludeRegistry = Map<string, React.RefObject<HTMLElement | null>>;
 
