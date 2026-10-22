@@ -63,6 +63,7 @@ export default function AboutSection(): React.ReactElement {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const bootTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const asciiPreRef = useRef<HTMLPreElement>(null);
 
   const [query, setQuery] = useState('');
   const [windowState, setWindowState] = useState<'normal' | 'minimized' | 'maximized'>('normal');
@@ -290,11 +291,17 @@ export default function AboutSection(): React.ReactElement {
                 .join('');
             });
 
-            setDisplayedAscii(animatedLines.join('\n'));
+            const text = animatedLines.join('\n');
+            if (asciiPreRef.current) {
+              asciiPreRef.current.textContent = text;
+            }
 
             if (frame < totalFrames) {
               requestAnimationFrame(animate);
             } else {
+              if (asciiPreRef.current) {
+                asciiPreRef.current.textContent = TARGET_ASCII;
+              }
               setDisplayedAscii(TARGET_ASCII);
               setIsAnimating(false);
               if (inputRef.current && window.innerWidth >= 768) {
@@ -521,10 +528,10 @@ export default function AboutSection(): React.ReactElement {
       <motion.section
         ref={AboutRef}
         id="about"
-        initial={{ opacity: 0, y: 44, filter: 'blur(12px)' }}
-        whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-        viewport={{ once: false, amount: 0.2 }}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
+        initial={{ opacity: 0, y: 32 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.15 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
         className={cn(
           'scroll-mt-24 flex w-full items-center justify-center p-2 sm:p-4 transition-all duration-300',
           windowState === 'maximized' ? 'min-h-screen' : 'min-h-[520px] sm:min-h-[650px]'
@@ -636,6 +643,7 @@ export default function AboutSection(): React.ReactElement {
               >
                 <div className="relative min-h-[70px] sm:min-h-[120px] overflow-x-auto no-scrollbar">
                   <pre
+                    ref={asciiPreRef}
                     className={cn(
                       'text-[6px] xs:text-[8px] sm:text-xs leading-tight transition-colors duration-500 select-none',
                       isAnimating

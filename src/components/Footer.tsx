@@ -7,10 +7,10 @@ import Link from "next/link";
 export default function Footer() {
   return (
     <motion.footer
-      initial={{ opacity: 0, y: 28, filter: "blur(10px)" }}
-      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      viewport={{ once: false, amount: 0.25 }}
-      transition={{ duration: 0.75, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.15 }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
       className="relative z-10 overflow-hidden border-t border-white/10 bg-black px-6 pb-10 pt-20 text-white sm:pb-12 sm:pt-28"
     >
       <div className="mx-auto max-w-7xl">

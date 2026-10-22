@@ -96,16 +96,15 @@ export default function Navbar() {
             borderRadius: floating ? 9999 : 0,
           }}
           transition={{
-            type: "spring",
-            stiffness: 200,
-            damping: 25,
+            duration: 0.3,
+            ease: [0.16, 1, 0.3, 1],
           }}
           className="w-full max-w-300 pointer-events-auto"
         >
 
           <LiquidGlass
             enabled={floating}
-            blurAmount="50px"
+            blurAmount="16px"
             className={cn(
               "w-full h-full px-6 md:px-8",
               floating
@@ -213,7 +212,7 @@ export default function Navbar() {
 
           <LiquidGlass
             enabled
-            blurAmount="55px"
+            blurAmount="16px"
             className="
             liquid-glass
             rounded-full

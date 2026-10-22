@@ -108,6 +108,8 @@ const ShaderPlane: React.FC<{
     [pixelRatio, size]
   );
 
+  const lastSizeRef = useRef({ w: 0, h: 0 });
+
   useFrame((state) => {
     if (!meshRef.current) return;
     const mat = meshRef.current.material as THREE.ShaderMaterial;
@@ -116,7 +118,11 @@ const ShaderPlane: React.FC<{
     mat.uniforms.u_pointerVisibility.value +=
       (visibilityTarget - mat.uniforms.u_pointerVisibility.value) * 0.12;
     mat.uniforms.u_time.value = state.clock.getElapsedTime();
-    mat.uniforms.u_resolution.value.set(size.width * gl.getPixelRatio(), size.height * gl.getPixelRatio());
+    if (lastSizeRef.current.w !== size.width || lastSizeRef.current.h !== size.height) {
+      lastSizeRef.current.w = size.width;
+      lastSizeRef.current.h = size.height;
+      mat.uniforms.u_resolution.value.set(size.width * gl.getPixelRatio(), size.height * gl.getPixelRatio());
+    }
   });
 
   const vertexShader = `
@@ -351,10 +357,10 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
       role="button"
       tabIndex={0}
       aria-label={`Open details for ${project.title}`}
-      initial={{ opacity: 0, y: 42, filter: 'blur(12px)' }}
-      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      viewport={{ once: false, amount: 0.2 }}
-      transition={{ delay: index * 0.08, duration: 0.5 }}
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.1 }}
+      transition={{ delay: Math.min(index * 0.05, 0.2), duration: 0.45, ease: 'easeOut' }}
       style={{
         rotateX,
         rotateY,
@@ -365,7 +371,7 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
         ${project.bentoSpan}
         liquid-glass-3d
         relative group cursor-pointer rounded-2xl
-        backdrop-blur-xl flex flex-col justify-between
+        backdrop-blur-md flex flex-col justify-between
         transition-shadow duration-300 ease-out
         hover:shadow-[0_30px_60px_rgba(0,0,0,0.9),0_0_50px_rgba(255,255,255,0.15)]
       `}
@@ -397,12 +403,12 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
         className="relative z-20 p-6 flex items-center justify-between transition-transform duration-500 ease-out group-hover:[transform:translateZ(50px)]"
         style={{ transformStyle: 'preserve-3d' }}
       >
-        <span className="text-xs font-semibold uppercase tracking-wider text-foreground/80 border border-border/40 bg-secondary/30 backdrop-blur-md rounded-full px-3 py-1 shadow-md">
+        <span className="text-xs font-semibold uppercase tracking-wider text-foreground/80 border border-white/10 bg-zinc-900/80 rounded-full px-3 py-1 shadow-md">
           {project.category}
         </span>
         
         <div 
-          className="p-2.5 rounded-full text-foreground bg-white/10 border border-white/20 backdrop-blur-md transition-all duration-500 ease-out group-hover:[transform:translateZ(40px)_scale(1.2)] group-hover:bg-white group-hover:text-black magnetic-btn-glow"
+          className="p-2.5 rounded-full text-foreground bg-white/10 border border-white/20 transition-all duration-300 ease-out group-hover:[transform:translateZ(40px)_scale(1.1)] group-hover:bg-white group-hover:text-black magnetic-btn-glow"
         >
           <ArrowUpRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </div>
@@ -426,7 +432,7 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
           {project.tags.map((tag) => (
             <span
               key={tag}
-              className="text-xs px-2.5 py-1 rounded-full text-muted-foreground border border-border/30 bg-secondary/20 backdrop-blur-md shadow-md"
+              className="text-xs px-2.5 py-1 rounded-full text-muted-foreground border border-white/10 bg-zinc-900/70 shadow-sm"
             >
               {tag}
             </span>

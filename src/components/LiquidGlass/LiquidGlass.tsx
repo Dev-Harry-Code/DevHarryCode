@@ -14,7 +14,7 @@
   export default function LiquidGlass({
     children,
     className = "",
-    blurAmount = "20px",
+    blurAmount = "16px",
     enabled = true,
   }: LiquidGlassProps) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -22,9 +22,11 @@
     const mouseRef = useRef<[number, number]>([0.5, 0.5]);
     const targetMouseRef = useRef<[number, number]>([0.5, 0.5]);
     const enabledFactorRef = useRef<number>(enabled ? 1.0 : 0.0);
+    const wakeLoopRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
       enabledFactorRef.current = enabled ? 1.0 : 0.0;
+      wakeLoopRef.current?.();
     }, [enabled]);
 
     useEffect(() => {
@@ -34,7 +36,7 @@
       // 1. WebGL Renderer
       const renderer = new Renderer({
         alpha: true,
-        dpr: Math.min(window.devicePixelRatio, 2),
+        dpr: Math.min(window.devicePixelRatio || 1, 1.5),
         antialias: true,
       });
 
@@ -172,9 +174,12 @@
         const x = (e.clientX - rect.left) / rect.width;
         const y = 1.0 - (e.clientY - rect.top) / rect.height;
         targetMouseRef.current = [x, y];
+        if (enabledFactorRef.current > 0.005) {
+          wakeLoop();
+        }
       }
 
-      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mousemove", handleMouseMove, { passive: true });
 
       // 6. Animation Loop
       let animationFrameId: number;
@@ -182,13 +187,27 @@
       const startTime = performance.now();
       let visible = true;
       let lastFrameTime = -1;
+      let isLoopRunning = false;
 
       const FRAME_INTERVAL = 1000 / 60;
 
-      function update(now: number) {
-        animationFrameId = requestAnimationFrame(update);
+      function wakeLoop() {
+        if (!isLoopRunning && visible && (enabledFactorRef.current > 0.005 || currentEnabled > 0.005)) {
+          isLoopRunning = true;
+          lastFrameTime = performance.now();
+          animationFrameId = requestAnimationFrame(update);
+        }
+      }
 
-        if (!visible) return;
+      wakeLoopRef.current = wakeLoop;
+
+      function update(now: number) {
+        if (!visible || (currentEnabled <= 0.005 && enabledFactorRef.current <= 0.005)) {
+          isLoopRunning = false;
+          return;
+        }
+
+        animationFrameId = requestAnimationFrame(update);
 
         if (lastFrameTime < 0 || now - lastFrameTime >= FRAME_INTERVAL) {
           lastFrameTime = now;
@@ -202,7 +221,7 @@
           program.uniforms.uMouse.value = mouseRef.current;
           program.uniforms.uEnabled.value = currentEnabled;
 
-          if (currentEnabled > 0.005 || enabledFactorRef.current > 0.005) {
+          if (currentEnabled > 0.005) {
             renderer.render({ scene, camera });
           }
         }
@@ -210,13 +229,19 @@
 
       const handleVisibilityChange = () => {
         visible = document.visibilityState === "visible";
-        if (visible && lastFrameTime < 0) lastFrameTime = performance.now();
+        if (visible && isLoopRunning) {
+          lastFrameTime = performance.now();
+          wakeLoop();
+        }
       };
 
       const visibilityObserver = new IntersectionObserver(
         (entries) => {
           visible = entries[0]?.isIntersecting ?? false;
-          if (visible && lastFrameTime < 0) lastFrameTime = performance.now();
+          if (visible && isLoopRunning) {
+            lastFrameTime = performance.now();
+            wakeLoop();
+          }
         },
         { rootMargin: "100px" }
       );
@@ -224,9 +249,12 @@
 
       document.addEventListener("visibilitychange", handleVisibilityChange);
 
-      animationFrameId = requestAnimationFrame(update);
+      if (enabledFactorRef.current > 0.005) {
+        wakeLoop();
+      }
 
       return () => {
+        wakeLoopRef.current = null;
         cancelAnimationFrame(animationFrameId);
         visibilityObserver.disconnect();
         document.removeEventListener("visibilitychange", handleVisibilityChange);

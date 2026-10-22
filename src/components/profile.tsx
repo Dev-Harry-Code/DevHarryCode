@@ -41,15 +41,10 @@ export default function InteractiveProfileCard() {
   // overhead and the card is genuinely lifting off the page.
   const shadowX = useTransform(mouseX, [-0.5, 0.5], [22, -22]);
   const shadowY = useTransform(mouseY, [-0.5, 0.5], [14, -14]);
-  const shadowBlur = useTransform(
-    [mouseX, mouseY],
-    ([lx, ly]: number[]) => 40 + Math.min(1, Math.hypot(lx, ly) * 2.2) * 30
-  );
   const shadowOpacity = useTransform(
     [mouseX, mouseY],
     ([lx, ly]: number[]) => 0.35 + Math.min(1, Math.hypot(lx, ly) * 2.2) * 0.25
   );
-  const dropShadow = useMotionTemplate`drop-shadow(${shadowX}px ${shadowY}px ${shadowBlur}px rgba(0,0,0,${shadowOpacity}))`;
 
   // Soft highlight that tracks the pointer directly
   const shineX = useTransform(mouseX, [-0.5, 0.5], ["12%", "88%"]);
@@ -95,9 +90,9 @@ export default function InteractiveProfileCard() {
 
   return (
     <motion.div
-      initial={reducedMotion ? false : { opacity: 0, y: 34, scale: 0.88, filter: "blur(14px)" }}
-      animate={reducedMotion ? {} : { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-      transition={{ duration: 0.9, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+      initial={reducedMotion ? false : { opacity: 0, y: 34, scale: 0.88 }}
+      animate={reducedMotion ? {} : { opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
       className="relative mt-10 flex justify-center perspective-[1700px]"
     >
       <motion.div
@@ -106,8 +101,23 @@ export default function InteractiveProfileCard() {
           duration: 5.5,
           repeat: active ? 0 : Infinity,
           ease: "easeInOut",
+          delay: 0.8,
         }}
+        className="relative will-change-transform [transform:translateZ(0)]"
       >
+        {/* Hardware-accelerated grounded shadow — replaces heavy dynamic filter:drop-shadow */}
+        {!reducedMotion && (
+          <motion.div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-[32px] bg-black/60 blur-2xl"
+            style={{
+              x: shadowX,
+              y: shadowY,
+              opacity: shadowOpacity,
+              scale: 0.95,
+            }}
+          />
+        )}
         <motion.button
           type="button"
           ref={cardRef}
@@ -132,7 +142,6 @@ export default function InteractiveProfileCard() {
             rotateX: reducedMotion ? 0 : rotateX,
             rotateY: reducedMotion ? 0 : rotateY,
             transformStyle: "preserve-3d",
-            filter: reducedMotion ? "none" : dropShadow,
             touchAction: "none",
           }}
           className="group relative h-86 w-72.5 cursor-pointer rounded-[32px] border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/80 focus-visible:ring-offset-4 focus-visible:ring-offset-black"

@@ -12,11 +12,17 @@ export default function VideoBackground() {
   const videoRef0 = useRef<HTMLVideoElement>(null);
   const videoRef1 = useRef<HTMLVideoElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
+  const isPausedByScrollRef = useRef(false);
 
   const [activeIdx, setActiveIdx] = useState<0 | 1>(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [mediaUnlocked, setMediaUnlocked] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+
+  const stateRef = useRef({ activeIdx, isPlaying, mediaUnlocked });
+  useEffect(() => {
+    stateRef.current = { activeIdx, isPlaying, mediaUnlocked };
+  });
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -47,8 +53,25 @@ export default function VideoBackground() {
     const updateFade = () => {
       rafId = null;
       const el = fadeRef.current;
+      const scrollY = window.scrollY;
+      const opacity = Math.max(0, 1 - scrollY / 500);
       if (el) {
-        el.style.opacity = String(Math.max(0, 1 - window.scrollY / 500));
+        el.style.opacity = String(opacity);
+      }
+
+      // When scrolled past hero, pause video decoding to eliminate GPU fill and video decode overhead
+      const { activeIdx: currIdx, isPlaying: currPlaying, mediaUnlocked: currUnlocked } = stateRef.current;
+      const currentRef = currIdx === 0 ? videoRef0.current : videoRef1.current;
+      if (scrollY > 550) {
+        if (currentRef && !currentRef.paused) {
+          currentRef.pause();
+          isPausedByScrollRef.current = true;
+        }
+      } else if (isPausedByScrollRef.current) {
+        if (currUnlocked && currPlaying && currentRef && currentRef.paused) {
+          currentRef.play().catch(() => {});
+        }
+        isPausedByScrollRef.current = false;
       }
     };
 

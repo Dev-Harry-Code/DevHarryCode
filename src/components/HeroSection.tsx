@@ -16,6 +16,8 @@ interface PreviewState {
   y: number;
 }
 
+const keywordRects = new WeakMap<HTMLElement, DOMRect>();
+
 function quantizePointer(value: number) {
   return Math.round(value / 10) * 10;
 }
@@ -27,12 +29,22 @@ export default function HeroSection() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
 
   useEffect(() => {
-    Object.values(HERO_PREVIEWS)
-      .flat()
-      .forEach((src) => {
-        const image = new window.Image();
-        image.src = src;
-      });
+    // Preload keyword preview images during idle time after the hero entrance completes
+    const preload = () => {
+      Object.values(HERO_PREVIEWS)
+        .flat()
+        .forEach((src) => {
+          const image = new window.Image();
+          image.src = src;
+        });
+    };
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const handle = (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback(preload, { timeout: 2000 });
+      return () => (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(handle);
+    } else {
+      const timer = setTimeout(preload, 1200);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const showPreview = (keyword: HeroKeyword, clientX: number, clientY: number, index = 0) => {
@@ -46,7 +58,12 @@ export default function HeroSection() {
 
   const handleKeywordMove = (event: ReactPointerEvent<HTMLSpanElement>, keyword: HeroKeyword) => {
     if (event.pointerType === "touch") return;
-    const rect = event.currentTarget.getBoundingClientRect();
+    const target = event.currentTarget;
+    let rect = keywordRects.get(target);
+    if (!rect) {
+      rect = target.getBoundingClientRect();
+      keywordRects.set(target, rect);
+    }
     const relativeX = Math.max(0, Math.min(rect.width - 1, event.clientX - rect.left));
     const index = Math.floor(relativeX / 5) % HERO_PREVIEWS[keyword].length;
     const x = quantizePointer(event.clientX + 20);
@@ -86,8 +103,12 @@ export default function HeroSection() {
     onPointerUp: (event: ReactPointerEvent<HTMLSpanElement>) => handleKeywordTouch(event, keyword),
     onKeyDown: (event: ReactKeyboardEvent<HTMLSpanElement>) => handleKeywordKeyDown(event, keyword),
     onFocus: (event: FocusEvent<HTMLSpanElement>) => handleKeywordFocus(event, keyword),
-    onBlur: () => setPreview(null),
+    onBlur: (event: FocusEvent<HTMLSpanElement>) => {
+      keywordRects.delete(event.currentTarget);
+      setPreview(null);
+    },
     onPointerLeave: (event: ReactPointerEvent<HTMLSpanElement>) => {
+      keywordRects.delete(event.currentTarget);
       if (event.pointerType !== "touch") setPreview(null);
     },
   });
@@ -95,13 +116,14 @@ export default function HeroSection() {
   return (
     <section className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-10 px-6 py-28 text-center sm:gap-14 md:flex-row md:gap-20 md:py-0">
       <motion.div
-        className="order-2 max-w-5xl will-change-transform md:order-1"
+        className="order-2 max-w-5xl md:order-1"
         style={{ y: translateY, opacity }}
       >
         <motion.div
-          initial={{ opacity: 0, x: -64, filter: "blur(14px)" }}
-          animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, x: -36 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+          className="will-change-[transform,opacity] [transform:translateZ(0)]"
         >
           <span className="rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs sm:px-5 sm:py-2 sm:text-sm md:text-base">
             Polyglot Programmer • Full Stack • Creative Engineering
@@ -109,7 +131,7 @@ export default function HeroSection() {
 
         <h1 className="mt-6 text-4xl font-extrabold leading-tight tracking-tight sm:mt-8 sm:text-5xl md:text-6xl lg:text-8xl">
           <span className="font-mono text-white/90">Hi! I&apos;m Harshal.</span>
-          <span className="block bg-linear-to-r from-cyan-100/90 via-white/80 to-violet-200/70 bg-clip-text font-serif font-normal italic tracking-normal text-transparent drop-shadow-[0_8px_20px_rgba(255,255,255,0.15)]">
+          <span className="block bg-linear-to-r from-cyan-100/90 via-white/80 to-violet-200/70 bg-clip-text font-serif font-normal italic tracking-normal text-transparent [filter:drop-shadow(0_4px_16px_rgba(255,255,255,0.12))]">
             <span className="hero-keyword inline-block cursor-help rounded-lg px-1 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("MaTriX")}>MaTriX</span>{" "}
             <span className="hero-keyword inline-block cursor-help rounded-lg px-1 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("programmer")}>programmer</span>
           </span>

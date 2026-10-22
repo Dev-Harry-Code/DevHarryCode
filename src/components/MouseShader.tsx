@@ -70,7 +70,7 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
 
     const renderer = new Renderer({
       alpha: true,
-      dpr: Math.min(window.devicePixelRatio, 2),
+      dpr: Math.min(window.devicePixelRatio || 1, 1.5),
       antialias: true,
       premultipliedAlpha: false,
     });
@@ -334,100 +334,31 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
     resizeObserver.observe(container);
 
     const startTime = performance.now();
-
-    function handlePointerMove(e: PointerEvent) {
-      // Ignore streak/velocity calculations on touch or pen inputs
-      if (e.pointerType !== "mouse") return;
-      if (!containerRef.current) return;
-
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = 1.0 - (e.clientY - rect.top) / rect.height;
-
-      const pxX = e.clientX;
-      const pxY = e.clientY;
-      const dx = pxX - prevPxMouseRef.current[0];
-      const dy = pxY - prevPxMouseRef.current[1];
-      const distPx = Math.sqrt(dx * dx + dy * dy);
-
-      distMovedPxRef.current += distPx;
-      prevPxMouseRef.current = [pxX, pxY];
-
-      mouseRef.current = [x, y];
-    }
-
-    function handlePointerDown(e: PointerEvent) {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = 1.0 - (e.clientY - rect.top) / rect.height;
-
-      const elapsedSec = (performance.now() - startTime) * 0.001;
-
-      if (clickRipplesRef.current.length >= MAX_RIPPLES) {
-        clickRipplesRef.current.shift();
-      }
-      clickRipplesRef.current.push({ x, y, startTime: elapsedSec });
-    }
-
-    const parentDiv = containerRef.current;
-    if (parentDiv) {
-      parentDiv.addEventListener("pointermove", handlePointerMove);
-      parentDiv.addEventListener("pointerdown", handlePointerDown);
-    }
-
-    window.addEventListener("scroll", handleScrollStart, { passive: true });
-    window.addEventListener("wheel", handleScrollStart, { passive: true });
-    window.addEventListener("scroll", handleScrollStop, { passive: true });
-
-    // Computes normalized exclusion rects (in shader UV space) from
-    // whatever elements are currently registered via useShaderExclude()
-    function computeExcludeRects(): [number, number, number, number][] {
-      const rects: [number, number, number, number][] = [];
-      const contEl = containerRef.current;
-
-      if (contEl) {
-        const contRect = contEl.getBoundingClientRect();
-        const entries = Array.from(excludeRegistry.values()).slice(0, MAX_EXCLUDE);
-
-        entries.forEach((ref) => {
-          const el = ref.current;
-          if (!el || contRect.width === 0 || contRect.height === 0) {
-            rects.push([-1, -1, -1, -1]);
-            return;
-          }
-          const r = el.getBoundingClientRect();
-          const minX = (r.left - contRect.left) / contRect.width;
-          const maxX = (r.right - contRect.left) / contRect.width;
-          // Flip Y to match uMouse's convention (v=0 bottom, v=1 top)
-          const minY = 1 - (r.bottom - contRect.top) / contRect.height;
-          const maxY = 1 - (r.top - contRect.top) / contRect.height;
-          rects.push([minX, minY, maxX, maxY]);
-        });
-      }
-
-      while (rects.length < MAX_EXCLUDE) rects.push([-1, -1, -1, -1]);
-      return rects;
-    }
+    const FRAME_INTERVAL = 1000 / 60;
 
     let animationFrameId: number;
     let currentEnabled = enabledFactorRef.current;
     let visible = true;
-    let lastFrameTime = -1;
-    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const updateMotionPreference = () => {
-      visible = document.visibilityState === "visible" && !motionQuery.matches;
-      if (visible && lastFrameTime < 0) lastFrameTime = performance.now();
-    };
-    updateMotionPreference();
-    motionQuery.addEventListener("change", updateMotionPreference);
     let scrolling = false;
     let scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastFrameTime = -1;
+    let isLoopRunning = false;
+    let idleFrames = 0;
+    let cachedExcludeRects: [number, number, number, number][] = initialExcludeRects;
+    let excludeRectsDirty = true;
 
-    const FRAME_INTERVAL = 1000 / 60;
+    function wakeLoop() {
+      if (!isLoopRunning && visible && !scrolling) {
+        isLoopRunning = true;
+        idleFrames = 0;
+        lastFrameTime = performance.now();
+        animationFrameId = requestAnimationFrame(update);
+      }
+    }
 
     function handleScrollStart() {
       scrolling = true;
+      excludeRectsDirty = true;
       if (scrollStopTimer) {
         clearTimeout(scrollStopTimer);
         scrollStopTimer = null;
@@ -439,14 +370,110 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
       scrollStopTimer = setTimeout(() => {
         scrollStopTimer = null;
         scrolling = false;
+        excludeRectsDirty = true;
         lastFrameTime = -1;
-      }, 120);
+        wakeLoop();
+      }, 100);
     }
 
-    function update(now: number) {
-      animationFrameId = requestAnimationFrame(update);
+    function handlePointerMove(e: PointerEvent) {
+      // Ignore streak/velocity calculations on touch or pen inputs
+      if (e.pointerType !== "mouse") return;
+      const w = window.innerWidth || 1;
+      const h = window.innerHeight || 1;
+      const x = Math.max(0, Math.min(1, e.clientX / w));
+      const y = Math.max(0, Math.min(1, 1.0 - e.clientY / h));
 
-      if (!visible || scrolling) return;
+      const pxX = e.clientX;
+      const pxY = e.clientY;
+      const dx = pxX - prevPxMouseRef.current[0];
+      const dy = pxY - prevPxMouseRef.current[1];
+      const distPx = Math.sqrt(dx * dx + dy * dy);
+
+      distMovedPxRef.current += distPx;
+      prevPxMouseRef.current = [pxX, pxY];
+
+      mouseRef.current = [x, y];
+      wakeLoop();
+    }
+
+    function handlePointerDown(e: PointerEvent) {
+      const w = window.innerWidth || 1;
+      const h = window.innerHeight || 1;
+      const x = Math.max(0, Math.min(1, e.clientX / w));
+      const y = Math.max(0, Math.min(1, 1.0 - e.clientY / h));
+
+      const elapsedSec = (performance.now() - startTime) * 0.001;
+
+      if (clickRipplesRef.current.length >= MAX_RIPPLES) {
+        clickRipplesRef.current.shift();
+      }
+      clickRipplesRef.current.push({ x, y, startTime: elapsedSec });
+      wakeLoop();
+    }
+
+    // Computes normalized exclusion rects (in shader UV space) from
+    // whatever elements are currently registered via useShaderExclude()
+    function computeExcludeRects(): [number, number, number, number][] {
+      if (!excludeRectsDirty) return cachedExcludeRects;
+      excludeRectsDirty = false;
+
+      const winW = window.innerWidth || 1;
+      const winH = window.innerHeight || 1;
+      const entries = Array.from(excludeRegistry.values()).slice(0, MAX_EXCLUDE);
+      const rects: [number, number, number, number][] = [];
+
+      entries.forEach((ref) => {
+        const el = ref.current;
+        if (!el) {
+          rects.push([-1, -1, -1, -1]);
+          return;
+        }
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0 || r.bottom < 0 || r.top > winH || r.right < 0 || r.left > winW) {
+          rects.push([-1, -1, -1, -1]);
+          return;
+        }
+        const minX = r.left / winW;
+        const maxX = r.right / winW;
+        const minY = 1.0 - (r.bottom / winH);
+        const maxY = 1.0 - (r.top / winH);
+        rects.push([minX, minY, maxX, maxY]);
+      });
+
+      while (rects.length < MAX_EXCLUDE) rects.push([-1, -1, -1, -1]);
+      cachedExcludeRects = rects;
+      return rects;
+    }
+
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotionPreference = () => {
+      visible = document.visibilityState === "visible" && !motionQuery.matches;
+      if (visible && isLoopRunning) {
+        lastFrameTime = performance.now();
+        wakeLoop();
+      }
+    };
+    updateMotionPreference();
+    motionQuery.addEventListener("change", updateMotionPreference);
+
+    const parentDiv = containerRef.current;
+    if (parentDiv) {
+      parentDiv.addEventListener("pointermove", handlePointerMove, { passive: true });
+      parentDiv.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    }
+
+    window.addEventListener("scroll", handleScrollStart, { passive: true });
+    window.addEventListener("wheel", handleScrollStart, { passive: true });
+    window.addEventListener("scroll", handleScrollStop, { passive: true });
+
+    function update(now: number) {
+      if (!visible || scrolling) {
+        isLoopRunning = false;
+        return;
+      }
+
+      animationFrameId = requestAnimationFrame(update);
 
       if (lastFrameTime < 0 || now - lastFrameTime >= FRAME_INTERVAL) {
         lastFrameTime = now;
@@ -531,20 +558,38 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
       program.uniforms.uHasTexture.value = hasTexture;
 
       renderer.render({ scene, camera });
+
+      // Check if ripples or motion are active. If not, sleep after a few frames to save GPU
+      const hasActiveClicks = clickRipplesRef.current.some(
+        (r) => elapsed - r.startTime < 1.8
+      );
+      const hasActiveMotion = accelRef.current > 0.0005 || Math.abs(currentEnabled - enabledFactorRef.current) > 0.01;
+
+      if (!hasActiveClicks && !hasActiveMotion) {
+        idleFrames++;
+        if (idleFrames > 8) {
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          isLoopRunning = false;
+        }
+      } else {
+        idleFrames = 0;
+      }
     }
 
     const handleVisibilityChange = () => {
       visible = document.visibilityState === "visible" && !motionQuery.matches;
-      if (visible && lastFrameTime < 0) {
+      if (visible) {
         lastFrameTime = performance.now();
+        wakeLoop();
       }
     };
 
     const visibilityObserver = new IntersectionObserver(
       (entries) => {
         visible = entries[0]?.isIntersecting ?? false;
-        if (visible && lastFrameTime < 0) {
+        if (visible) {
           lastFrameTime = performance.now();
+          wakeLoop();
         }
       },
       { rootMargin: "200px" }
@@ -553,13 +598,8 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    function startLoop() {
-      cancelAnimationFrame(animationFrameId);
-      lastFrameTime = -1;
-      animationFrameId = requestAnimationFrame(update);
-    }
-
-    startLoop();
+    // Canvas starts cleared to transparent; render loop only wakes on user interaction
+    gl.clear(gl.COLOR_BUFFER_BIT);
 
     return () => {
       cancelAnimationFrame(animationFrameId);
@@ -585,11 +625,11 @@ export const MouseShader: React.FC<MouseShaderProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative isolate overflow-hidden ${className}`}
+      className={`relative isolate ${className}`}
     >
       <div
         ref={canvasContainerRef}
-        className="absolute inset-0 z-10 pointer-events-none overflow-hidden"
+        className="fixed inset-0 z-10 pointer-events-none overflow-hidden"
       />
       <div className="relative z-0 h-full w-full">{children}</div>
     </div>
