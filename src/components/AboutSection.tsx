@@ -533,17 +533,32 @@ export default function AboutSection(): React.ReactElement {
         viewport={{ once: true, amount: 0.15 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className={cn(
-          'scroll-mt-24 flex w-full items-center justify-center p-2 sm:p-4 transition-all duration-300',
+          'terminal-section relative isolate overflow-hidden scroll-mt-24 flex w-full items-center justify-center p-2 sm:p-4 transition-all duration-300',
           windowState === 'maximized' ? 'min-h-screen' : 'min-h-[520px] sm:min-h-[650px]'
         )}
       >
+        <div className="starfield" aria-hidden="true">
+          <div className="stars stars-1" />
+          <div className="stars stars-2" />
+          <span className="shooting-star shooting-star--one" />
+          <span className="shooting-star shooting-star--two" />
+          <span className="shooting-star shooting-star--three" />
+          <span className="shooting-star shooting-star--four" />
+          <div className="starfield-fade" />
+        </div>
         <Card
           ref={sectionRef}
           className={cn(
-            'relative p-0 overflow-hidden gap-0 rounded-xl border border-zinc-800 bg-zinc-950/95 font-mono text-xs sm:text-sm text-zinc-200 shadow-2xl transition-all duration-300 backdrop-blur-sm',
+            'relative z-10 p-0 overflow-hidden gap-0 rounded-xl border border-white/15 bg-zinc-950/60 font-mono text-xs sm:text-sm text-zinc-200 shadow-2xl transition-all duration-300 backdrop-blur-xl',
             getContainerStyles()
           )}
         >
+          <div className="terminal-fluid" aria-hidden="true">
+            <span className="terminal-fluid__blob terminal-fluid__blob--violet" />
+            <span className="terminal-fluid__blob terminal-fluid__blob--blue" />
+            <span className="terminal-fluid__blob terminal-fluid__blob--teal" />
+            <span className="terminal-fluid__sheen" />
+          </div>
           <AnimatePresence>
             {isBooting && (
               <motion.div
@@ -551,7 +566,7 @@ export default function AboutSection(): React.ReactElement {
                 animate={{ opacity: 1, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, filter: 'blur(8px)' }}
                 transition={{ duration: 0.35 }}
-                className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-zinc-950 text-zinc-100"
+                className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-zinc-950/80 text-zinc-100 backdrop-blur-md"
               >
                 <Command className="h-12 w-12 text-white drop-shadow-[0_0_18px_rgba(255,255,255,0.55)]" strokeWidth={1.5} />
                 <div className="w-44 sm:w-56">
@@ -565,7 +580,7 @@ export default function AboutSection(): React.ReactElement {
           </AnimatePresence>
 
           {/* macOS Window Title Bar */}
-          <div className="relative flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/60 px-3 py-2 select-none group">
+          <div className="relative z-10 flex items-center justify-between border-b border-white/10 bg-zinc-900/45 px-3 py-2 select-none group backdrop-blur-md">
             {/* macOS Window Dots Controls */}
             <div className="flex items-center gap-2 z-10">
               <Tooltip>
@@ -635,7 +650,7 @@ export default function AboutSection(): React.ReactElement {
           </div>
 
           {windowState !== 'minimized' && terminalReady && (
-            <CardContent className="flex flex-1 min-h-0 flex-col p-0 bg-zinc-950">
+            <CardContent className="relative z-10 flex flex-1 min-h-0 flex-col p-0 bg-zinc-950/35 backdrop-blur-[2px]">
               {/* Terminal Content Container */}
               <div 
                 ref={scrollAreaRef} 
@@ -715,7 +730,7 @@ export default function AboutSection(): React.ReactElement {
               {/* Translucent macOS Prompt Input */}
               {!isAnimating && <form
                 onSubmit={handleSubmit}
-                className="sticky bottom-0 z-10 flex items-center gap-1.5 border-t border-zinc-800/80 bg-zinc-950 px-4 py-2.5 backdrop-blur-md"
+                className="sticky bottom-0 z-10 flex items-center gap-1.5 border-t border-white/10 bg-zinc-950/55 px-4 py-2.5 backdrop-blur-md"
               >
                 <span className="font-bold text-xs sm:text-sm text-emerald-400 shrink-0">
                   devharrycode<span className="text-zinc-600">:</span><span className="text-blue-400">~</span><span className="text-zinc-200">$</span>
