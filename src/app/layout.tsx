@@ -7,7 +7,7 @@ import MouseShader from "@/components/MouseShader";
 export const metadata: Metadata = {
   metadataBase: new URL("https://devharrycode.vercel.app"),
   title: {
-    default: "DevHarryCode - Harshal Sharma",
+    default: "DevHarryCode",
     template: "%s | DevHarryCode",
   },
   description:
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://devharrycode.vercel.app",
     siteName: "DevHarryCode",
-    title: "DevHarryCode - Harshal Sharma",
+    title: "DevHarryCode",
     description:
       "Creative engineering, immersive interfaces, and intelligent digital experiences by Harshal Sharma.",
     images: [
@@ -40,13 +40,13 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "DevHarryCode - Harshal Sharma",
+        alt: "DevHarryCode",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "DevHarryCode - Harshal Sharma",
+    title: "DevHarryCode",
     description:
       "Creative engineering, immersive interfaces, and intelligent digital experiences by Harshal Sharma.",
     images: ["/opengraph-image"],
