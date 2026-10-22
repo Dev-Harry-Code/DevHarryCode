@@ -573,7 +573,7 @@ export default function AboutSection(): React.ReactElement {
                   <div className="h-1 overflow-hidden rounded-full bg-zinc-800">
                     <div className="h-full origin-left animate-[boot-fill_1.6s_ease-out_forwards] rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)]" />
                   </div>
-                  <p className="mt-2 text-center text-[9px] uppercase tracking-[0.3em] text-zinc-500">starting session</p>
+                  <p className="mt-2 text-center text-[9px] tracking-[0.3em] text-zinc-500">Starting Session</p>
                 </div>
               </motion.div>
             )}
