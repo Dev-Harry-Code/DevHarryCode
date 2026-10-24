@@ -92,18 +92,49 @@ export default function VideoBackground() {
   useEffect(() => {
     const activeRef = activeIdx === 0 ? videoRef0.current : videoRef1.current;
     const inactiveRef = activeIdx === 0 ? videoRef1.current : videoRef0.current;
+    let retryPlayback: (() => void) | null = null;
+
+    const playWhenReady = () => {
+      if (!activeRef || !mediaUnlocked || !isPlaying) return;
+
+      activeRef.preload = "metadata";
+      const playPromise = activeRef.play();
+
+      // On a fresh session, changing preload and calling play can race with
+      // the first media load. Retry once the browser has enough data instead
+      // of treating that transient rejection as a user pause.
+      if (playPromise) {
+        playPromise.catch(() => {
+          retryPlayback = () => {
+            activeRef.removeEventListener("canplay", retryPlayback!);
+            activeRef.removeEventListener("loadeddata", retryPlayback!);
+            activeRef.play().catch(() => setIsPlaying(false));
+          };
+          activeRef.addEventListener("canplay", retryPlayback);
+          activeRef.addEventListener("loadeddata", retryPlayback);
+          activeRef.load();
+        });
+      }
+    };
 
     if (activeRef) {
       activeRef.currentTime = 0;
       activeRef.playbackRate = 0.8;
       if (mediaUnlocked && isPlaying) {
-        activeRef.play().catch(() => setIsPlaying(false));
+        playWhenReady();
       }
     }
 
     if (inactiveRef) {
       inactiveRef.pause();
     }
+
+    return () => {
+      if (activeRef && retryPlayback) {
+        activeRef.removeEventListener("canplay", retryPlayback);
+        activeRef.removeEventListener("loadeddata", retryPlayback);
+      }
+    };
   }, [activeIdx, isPlaying, mediaUnlocked]);
 
   const togglePlayback = () => {
