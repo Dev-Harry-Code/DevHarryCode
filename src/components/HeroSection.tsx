@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion, useReducedMotion } from "framer-motion";
 import DotMeshBackground from "@/components/DotMeshBackground";
@@ -11,6 +11,7 @@ import type { FocusEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as R
 const ProjectSphereCanvas = dynamic(() => import("@/components/ProjectSphereCanvas"), { ssr: false });
 
 interface PreviewState { keyword: HeroKeyword; x: number; y: number; }
+interface CenterOffset { x: number; y: number; }
 const EMAIL = "dev.harshalsharma@gmail.com";
 
 function clampPreview(value: number, max: number, size: number) {
@@ -25,6 +26,36 @@ export default function HeroSection() {
   const heroRef = useRef<HTMLElement>(null);
   const globeSlotRef = useRef<HTMLDivElement>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [centerOffset, setCenterOffset] = useState<CenterOffset | null>(null);
+
+  useEffect(() => {
+    const hero = heroRef.current;
+    const slot = globeSlotRef.current;
+    if (!hero || !slot) return;
+
+    const measure = () => {
+      const heroRect = hero.getBoundingClientRect();
+      const slotRect = slot.getBoundingClientRect();
+      if (!heroRect.width || !heroRect.height || !slotRect.width || !slotRect.height) return;
+      const slotCenterInHeroX = slotRect.left - heroRect.left + slotRect.width / 2;
+      const slotCenterInHeroY = slotRect.top - heroRect.top + slotRect.height / 2;
+      const entryCenterInHeroX = window.innerWidth / 2 - heroRect.left;
+      const entryCenterInHeroY = Math.min(heroRect.height / 2, window.innerHeight / 2);
+      setCenterOffset({
+        x: entryCenterInHeroX - slotCenterInHeroX,
+        y: entryCenterInHeroY - slotCenterInHeroY,
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(hero);
+    resizeObserver.observe(slot);
+    window.addEventListener("resize", measure, { passive: true });
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
 
   const positionPreview = (clientX: number, clientY: number, keyword: HeroKeyword) => {
     const width = window.innerWidth; const height = window.innerHeight;
@@ -57,6 +88,27 @@ export default function HeroSection() {
   const hiddenTextState = { opacity: 0, x: -16, y: 10, filter: "blur(14px)" };
   const visibleTextState = { opacity: 1, x: 0, y: 0, filter: "blur(0px)" };
 
+  const globeAnimate = (() => {
+    if (reducedMotion) {
+      return { opacity: stageRevealed ? 1 : 0, x: 0, y: 0 };
+    }
+    if (phase === "waiting-consent" || !centerOffset) {
+      return { opacity: 0, x: centerOffset?.x ?? 0, y: centerOffset?.y ?? 0 };
+    }
+    if (phase === "globe-assembling") {
+      return { opacity: 1, x: centerOffset.x, y: centerOffset.y };
+    }
+    return { opacity: 1, x: 0, y: 0 };
+  })();
+
+  const globeTransition = reducedMotion
+    ? { duration: 0.25 }
+    : phase === "waiting-consent"
+      ? { duration: 0 }
+      : phase === "globe-assembling"
+        ? { opacity: { duration: 0.65, ease: [0.22, 1, 0.36, 1] as const }, x: { duration: 0 }, y: { duration: 0 } }
+        : { duration: 1.02, ease: [0.65, 0, 0.35, 1] as const };
+
   return (
     <section ref={heroRef} className="relative isolate z-10 flex min-h-[min(900px,100svh)] items-center overflow-hidden px-6 py-28 sm:px-10 md:min-h-screen md:px-14 lg:px-20">
       <motion.div
@@ -69,17 +121,7 @@ export default function HeroSection() {
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_24%_48%,rgba(25,55,125,0.22),transparent_44%),linear-gradient(180deg,rgba(3,6,18,0.12),rgba(3,5,14,0.68))]" />
       </motion.div>
 
-      {/* Full-hero WebGL layer: static DOM dimensions prevent scroll/animation canvas resizes */}
-      <motion.div
-        initial={false}
-        animate={{ opacity: stageRevealed ? 1 : 0 }}
-        transition={{ duration: reducedMotion ? 0.25 : 0.7, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute inset-0 z-10"
-      >
-        <ProjectSphereCanvas heroRef={heroRef} globeSlotRef={globeSlotRef} />
-      </motion.div>
-
-      <div className="pointer-events-none relative z-20 mx-auto grid w-full max-w-[1760px] items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] lg:gap-12 xl:grid-cols-[minmax(0,1fr)_760px] xl:gap-0">
+      <div className="relative z-10 mx-auto grid w-full max-w-[1760px] items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] lg:gap-12 xl:grid-cols-[minmax(0,1fr)_760px] xl:gap-0">
         <div
           className="relative z-20 max-w-3xl text-left lg:max-w-[72rem]"
           style={{ pointerEvents: heroTextVisible ? "auto" : "none" }}
@@ -116,12 +158,25 @@ export default function HeroSection() {
           </motion.div>
         </div>
 
-        {/* Resting target slot for the globe */}
+        {/* Un-transformed slot for measuring resting position; inner canvas translates smoothly via translate3d */}
         <div
           ref={globeSlotRef}
-          aria-hidden="true"
-          className="pointer-events-none h-[min(92vw,31rem)] min-h-[20rem] w-full sm:h-[clamp(24rem,72vw,36rem)] sm:min-h-[24rem] lg:h-[clamp(32rem,49vw,50rem)] lg:min-h-[32rem]"
-        />
+          className="relative z-10 flex w-full items-center justify-center"
+        >
+          <motion.div
+            initial={false}
+            animate={globeAnimate}
+            transition={globeTransition}
+            style={{ willChange: "transform, opacity" }}
+          >
+            <ProjectSphereCanvas
+              travelDirection={{
+                dx: -(centerOffset?.x ?? -1),
+                dy: -(centerOffset?.y ?? 0),
+              }}
+            />
+          </motion.div>
+        </div>
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-32 bg-linear-to-t from-black/75 to-transparent" />
       {preview && <HeroKeywordPreview {...preview} />}

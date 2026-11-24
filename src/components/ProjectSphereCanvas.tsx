@@ -571,28 +571,17 @@ function SereneMotes({
 
 const TOTAL_ASSEMBLY_TIME = 2.05;
 const DOCK_DURATION = 1.02;
-
-interface LayoutMetrics {
-  heroWidth: number;
-  heroHeight: number;
-  slotOffsetX: number;
-  slotOffsetY: number;
-  slotWidth: number;
-  slotHeight: number;
-  entryOffsetX: number;
-  entryOffsetY: number;
-}
+const RESTING_SCALE = 1.66;
+const BIG_SCALE = 2.0;
 
 function Globe({
   introPhase,
   reducedMotion,
-  heroRef,
-  globeSlotRef,
+  travelDirection,
 }: {
   introPhase: IntroPhase;
   reducedMotion: boolean;
-  heroRef?: React.RefObject<HTMLElement | null>;
-  globeSlotRef?: React.RefObject<HTMLDivElement | null>;
+  travelDirection: { dx: number; dy: number };
 }) {
   const motionGroup = useRef<THREE.Group | null>(null);
   const group = useRef<THREE.Group | null>(null);
@@ -604,14 +593,11 @@ function Globe({
   const sphereHovered = useRef(false);
   const assemblyClockRef = useRef(0);
   const dockClockRef = useRef(0);
-  const prevPosRef = useRef(new THREE.Vector3());
-  const posInitializedRef = useRef(false);
   const uploadQueueRef = useRef<(() => void)[]>([]);
   const drag = useInertiaDrag(dragGroup);
-  const { gl, viewport } = useThree();
+  const { gl } = useThree();
 
   const [shuffleSeed] = useState(() => Math.floor(Math.random() * 0xffffffff));
-  const layoutMetricsRef = useRef<LayoutMetrics | null>(null);
 
   const enqueueUpload = useMemo(
     () => (task: () => void) => {
@@ -619,39 +605,6 @@ function Globe({
     },
     [],
   );
-
-  useEffect(() => {
-    const heroEl = heroRef?.current;
-    const slotEl = globeSlotRef?.current;
-    if (!heroEl || !slotEl) return;
-
-    const measure = () => {
-      const heroRect = heroEl.getBoundingClientRect();
-      const slotRect = slotEl.getBoundingClientRect();
-      if (!heroRect.width || !heroRect.height || !slotRect.width || !slotRect.height) return;
-      layoutMetricsRef.current = {
-        heroWidth: heroRect.width,
-        heroHeight: heroRect.height,
-        slotOffsetX: slotRect.left - heroRect.left + slotRect.width / 2,
-        slotOffsetY: slotRect.top - heroRect.top + slotRect.height / 2,
-        slotWidth: slotRect.width,
-        slotHeight: slotRect.height,
-        entryOffsetX: heroRect.width / 2,
-        entryOffsetY: Math.min(heroRect.height / 2, window.innerHeight / 2),
-      };
-    };
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(heroEl);
-    observer.observe(slotEl);
-    window.addEventListener("resize", measure, { passive: true });
-    measure();
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [heroRef, globeSlotRef]);
 
   const sharedGeometry = useMemo(() => new THREE.PlaneGeometry(1.04, 0.68), []);
   const sharedBackTexture = useMemo(() => makeSharedBackTexture(), []);
@@ -747,45 +700,20 @@ function Globe({
   }, []);
 
   useFrame((_, delta) => {
-    // Batch up to 2 photo canvas draws/uploads per frame to avoid main-thread frame spikes
+    // Batch up to 2 photo canvas draws/uploads per frame to avoid main-thread spikes
     for (let i = 0; i < 2 && uploadQueueRef.current.length > 0; i += 1) {
       const task = uploadQueueRef.current.shift();
       task?.();
     }
 
     const dt = Math.min(delta, 0.033);
-    const metrics = layoutMetricsRef.current;
-
-    let entryWorldX = 0;
-    let entryWorldY = 0;
-    let dockWorldX = 0;
-    let dockWorldY = 0;
-    let restingScale = 1.08;
-    let bigScale = 1.56;
-
-    if (metrics) {
-      entryWorldX = (metrics.entryOffsetX / metrics.heroWidth - 0.5) * viewport.width;
-      entryWorldY = -(metrics.entryOffsetY / metrics.heroHeight - 0.5) * viewport.height;
-      dockWorldX = (metrics.slotOffsetX / metrics.heroWidth - 0.5) * viewport.width;
-      dockWorldY = -(metrics.slotOffsetY / metrics.heroHeight - 0.5) * viewport.height;
-
-      const slotWidthWorld = (metrics.slotWidth / metrics.heroWidth) * viewport.width;
-      const slotHeightWorld = (metrics.slotHeight / metrics.heroHeight) * viewport.height;
-      // Match original compact resting sphere radius (~250-270px radius on desktop)
-      const restingDiameter = Math.min(slotWidthWorld, slotHeightWorld) * 0.68;
-      restingScale = THREE.MathUtils.clamp(restingDiameter / (2 * 2.55), 0.72, 1.18);
-
-      const maxCenterDiameter = Math.min(viewport.width * 0.78, viewport.height * 0.8);
-      bigScale = Math.min(maxCenterDiameter / (2 * 2.55), restingScale * 1.44);
-    }
 
     if (introPhase === "waiting-consent") {
       assemblyClockRef.current = 0;
       dockClockRef.current = 0;
-      posInitializedRef.current = false;
       if (motionGroup.current) {
-        motionGroup.current.position.set(entryWorldX, entryWorldY, -3.5);
-        motionGroup.current.scale.setScalar(bigScale * 0.78);
+        motionGroup.current.position.set(0, 0, -3.6);
+        motionGroup.current.scale.setScalar(BIG_SCALE * 0.78);
       }
       if (wakeRef.current) wakeRef.current.visible = false;
       return;
@@ -804,63 +732,40 @@ function Globe({
 
     if (motionGroup.current) {
       if (reducedMotion || introPhase === "complete") {
-        motionGroup.current.position.set(dockWorldX, dockWorldY, 0);
-        motionGroup.current.scale.setScalar(restingScale);
+        motionGroup.current.position.set(0, 0, 0);
+        motionGroup.current.scale.setScalar(RESTING_SCALE);
       } else if (introPhase === "globe-assembling") {
         const assembleProgress = THREE.MathUtils.clamp(assemblyClockRef.current / 1.15, 0, 1);
         const forwardEase = easeOutCubic(assembleProgress);
-        motionGroup.current.position.set(
-          entryWorldX,
-          entryWorldY,
-          THREE.MathUtils.lerp(-3.5, 0.45, forwardEase),
-        );
+        motionGroup.current.position.set(0, 0, THREE.MathUtils.lerp(-3.6, 0.35, forwardEase));
         motionGroup.current.scale.setScalar(
-          THREE.MathUtils.lerp(bigScale * 0.78, bigScale, forwardEase),
+          THREE.MathUtils.lerp(BIG_SCALE * 0.78, BIG_SCALE, forwardEase),
         );
       } else {
         const dockT = THREE.MathUtils.clamp(dockClockRef.current / DOCK_DURATION, 0, 1);
         const dockEase = easeInOutCubic(dockT);
-        motionGroup.current.position.set(
-          THREE.MathUtils.lerp(entryWorldX, dockWorldX, dockEase),
-          THREE.MathUtils.lerp(entryWorldY, dockWorldY, dockEase),
-          THREE.MathUtils.lerp(0.45, 0, dockEase),
-        );
+        motionGroup.current.position.set(0, 0, THREE.MathUtils.lerp(0.35, 0, dockEase));
         motionGroup.current.scale.setScalar(
-          THREE.MathUtils.lerp(bigScale, restingScale, dockEase),
+          THREE.MathUtils.lerp(BIG_SCALE, RESTING_SCALE, dockEase),
         );
       }
 
       if (wakeRef.current && wakeMatRef.current) {
-        if (!posInitializedRef.current) {
-          prevPosRef.current.copy(motionGroup.current.position);
-          posInitializedRef.current = true;
-        }
-        const vx = (motionGroup.current.position.x - prevPosRef.current.x) / Math.max(dt, 0.008);
-        const vy = (motionGroup.current.position.y - prevPosRef.current.y) / Math.max(dt, 0.008);
-        const vz = (motionGroup.current.position.z - prevPosRef.current.z) / Math.max(dt, 0.008);
-        prevPosRef.current.copy(motionGroup.current.position);
-
-        const speed2D = Math.hypot(vx, vy);
-        const totalSpeed = Math.hypot(speed2D, vz);
-        const targetOpacity =
-          !reducedMotion && introPhase !== "complete"
-            ? THREE.MathUtils.clamp(totalSpeed * 0.045, 0, 0.38)
-            : 0;
-
-        wakeMatRef.current.opacity = THREE.MathUtils.damp(
-          wakeMatRef.current.opacity,
-          targetOpacity,
-          6,
-          dt,
-        );
-
-        if (wakeMatRef.current.opacity > 0.008) {
-          wakeRef.current.visible = true;
-          const stretch = 1 + Math.min(speed2D * 0.06, 0.6);
-          wakeRef.current.scale.set(7.4 * stretch, 6.6, 1);
-          if (speed2D > 0.05) {
-            wakeRef.current.rotation.z = Math.atan2(vy, vx);
-          }
+        if (!reducedMotion && introPhase === "globe-assembling") {
+          const p = THREE.MathUtils.clamp(assemblyClockRef.current / 1.15, 0, 1);
+          const intensity = Math.sin(p * Math.PI) * 0.32;
+          wakeMatRef.current.opacity = intensity;
+          wakeRef.current.visible = intensity > 0.01;
+          wakeRef.current.scale.set(9.5, 9.5, 1);
+          wakeRef.current.rotation.z = 0;
+        } else if (!reducedMotion && (introPhase === "globe-docking" || dockClockRef.current < DOCK_DURATION)) {
+          const dockT = THREE.MathUtils.clamp(dockClockRef.current / DOCK_DURATION, 0, 1);
+          const velocityBell = 4 * dockT * (1 - dockT); // Peaks mid-glide along ease-in-out
+          const intensity = velocityBell * 0.36;
+          wakeMatRef.current.opacity = intensity;
+          wakeRef.current.visible = intensity > 0.008;
+          wakeRef.current.scale.set(9.2 * (1 + velocityBell * 0.55), 8.2, 1);
+          wakeRef.current.rotation.z = Math.atan2(-travelDirection.dy, travelDirection.dx);
         } else {
           wakeRef.current.visible = false;
         }
@@ -907,7 +812,7 @@ function Globe({
   return (
     <group ref={motionGroup}>
       {/* Motion-blur luminous wake during entry & ease-in-out glide */}
-      <mesh ref={wakeRef} position={[0, 0, -0.45]} visible={false}>
+      <mesh ref={wakeRef} position={[0, 0, -0.5]} visible={false}>
         <planeGeometry args={[1, 1]} />
         <meshBasicMaterial
           ref={wakeMatRef}
@@ -976,11 +881,9 @@ function Globe({
 }
 
 export default function ProjectSphereCanvas({
-  heroRef,
-  globeSlotRef,
+  travelDirection = { dx: 1, dy: 0 },
 }: {
-  heroRef?: React.RefObject<HTMLElement | null>;
-  globeSlotRef?: React.RefObject<HTMLDivElement | null>;
+  travelDirection?: { dx: number; dy: number };
 }) {
   const { phase, reducedMotion, markGlobeReady } = useIntroSequence();
 
@@ -1002,7 +905,8 @@ export default function ProjectSphereCanvas({
       <Canvas
         className={styles.canvas}
         frameloop={isWaiting ? "demand" : "always"}
-        camera={{ position: [0, 0, 21], fov: 26 }}
+        resize={{ scroll: false }}
+        camera={{ position: [0, 0, 13.5], fov: 48 }}
         dpr={[1, 1.25]}
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
       >
@@ -1010,8 +914,7 @@ export default function ProjectSphereCanvas({
         <Globe
           introPhase={phase}
           reducedMotion={reducedMotion}
-          heroRef={heroRef}
-          globeSlotRef={globeSlotRef}
+          travelDirection={travelDirection}
         />
       </Canvas>
     </div>
