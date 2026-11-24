@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { motion } from "framer-motion";
 import * as THREE from "three";
 import { useInertiaDrag } from "@/components/useInertiaDrag";
 import { useIntroSequence, type IntroPhase } from "@/components/IntroSequenceProvider";
@@ -115,9 +116,10 @@ function makeRadialGlowTexture(): THREE.CanvasTexture {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Unable to create glow texture");
   const gradient = ctx.createRadialGradient(48, 48, 0, 48, 48, 48);
-  gradient.addColorStop(0, "rgba(180, 222, 255, 0.95)");
-  gradient.addColorStop(0.28, "rgba(110, 175, 255, 0.42)");
-  gradient.addColorStop(0.62, "rgba(130, 130, 255, 0.12)");
+  gradient.addColorStop(0, "rgba(180, 222, 255, 0.92)");
+  gradient.addColorStop(0.24, "rgba(110, 175, 255, 0.38)");
+  gradient.addColorStop(0.52, "rgba(130, 130, 255, 0.1)");
+  gradient.addColorStop(0.76, "rgba(0, 0, 0, 0)");
   gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 96, 96);
@@ -513,7 +515,7 @@ function SereneMotes({
     for (let i = 0; i < count; i += 1) {
       const u = rand() * 2 - 1;
       const theta = rand() * Math.PI * 2;
-      const r = 2.75 + rand() * 1.1;
+      const r = 2.68 + rand() * 0.68;
       const ring = Math.sqrt(Math.max(0, 1 - u * u));
       positions[i * 3] = Math.cos(theta) * ring * r;
       positions[i * 3 + 1] = u * r;
@@ -753,18 +755,18 @@ function Globe({
       if (wakeRef.current && wakeMatRef.current) {
         if (!reducedMotion && introPhase === "globe-assembling") {
           const p = THREE.MathUtils.clamp(assemblyClockRef.current / 1.15, 0, 1);
-          const intensity = Math.sin(p * Math.PI) * 0.32;
+          const intensity = Math.sin(p * Math.PI) * 0.34;
           wakeMatRef.current.opacity = intensity;
           wakeRef.current.visible = intensity > 0.01;
-          wakeRef.current.scale.set(9.5, 9.5, 1);
+          wakeRef.current.scale.set(6.2, 6.2, 1);
           wakeRef.current.rotation.z = 0;
         } else if (!reducedMotion && (introPhase === "globe-docking" || dockClockRef.current < DOCK_DURATION)) {
           const dockT = THREE.MathUtils.clamp(dockClockRef.current / DOCK_DURATION, 0, 1);
           const velocityBell = 4 * dockT * (1 - dockT); // Peaks mid-glide along ease-in-out
-          const intensity = velocityBell * 0.36;
+          const intensity = velocityBell * 0.38;
           wakeMatRef.current.opacity = intensity;
           wakeRef.current.visible = intensity > 0.008;
-          wakeRef.current.scale.set(9.2 * (1 + velocityBell * 0.55), 8.2, 1);
+          wakeRef.current.scale.set(6.4 * (1 + velocityBell * 0.28), 5.8, 1);
           wakeRef.current.rotation.z = Math.atan2(-travelDirection.dy, travelDirection.dx);
         } else {
           wakeRef.current.visible = false;
@@ -892,6 +894,7 @@ export default function ProjectSphereCanvas({
   }, [markGlobeReady]);
 
   const isWaiting = phase === "waiting-consent";
+  const isMoving = !reducedMotion && (phase === "globe-assembling" || phase === "globe-docking");
   const interactive = phase === "hero-text" || phase === "nav-open" || phase === "complete";
 
   return (
@@ -906,7 +909,7 @@ export default function ProjectSphereCanvas({
         className={styles.canvas}
         frameloop={isWaiting ? "demand" : "always"}
         resize={{ scroll: false }}
-        camera={{ position: [0, 0, 13.5], fov: 48 }}
+        camera={{ position: [0, 0, 15.4], fov: 48 }}
         dpr={[1, 1.25]}
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
       >
@@ -917,6 +920,15 @@ export default function ProjectSphereCanvas({
           travelDirection={travelDirection}
         />
       </Canvas>
+
+      {/* Non-translucent glowing box overlay on top: invisible at initial/rest, glows while moving */}
+      <motion.div
+        aria-hidden="true"
+        initial={false}
+        animate={{ opacity: isMoving ? 1 : 0 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="pointer-events-none absolute inset-4 z-10 rounded-3xl border border-cyan-300/35 bg-transparent shadow-[0_0_48px_rgba(96,165,250,0.22),inset_0_0_38px_rgba(125,211,252,0.14)] sm:inset-6"
+      />
     </div>
   );
 }
