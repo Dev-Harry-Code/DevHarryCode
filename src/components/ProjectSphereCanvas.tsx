@@ -62,8 +62,12 @@ const pexelsPhotoIds = [
   2858265, 32420917, 6661427, 33931028, 6498997, 17662493,
 ];
 const photoUrls = pexelsPhotoIds.map(
-  (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=640`,
+  (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=400`,
 );
+
+const TEX_W = 384;
+const TEX_H = 252;
+const TEX_RADIUS = 34;
 
 function makeSeededRandom(seed: number) {
   let state = seed >>> 0;
@@ -87,56 +91,69 @@ function easeInOutCubic(t: number) {
 
 function makeSharedBackTexture(): THREE.CanvasTexture {
   const backCanvas = document.createElement("canvas");
-  backCanvas.width = 256;
-  backCanvas.height = 168;
+  backCanvas.width = 192;
+  backCanvas.height = 126;
   const backContext = backCanvas.getContext("2d");
   if (!backContext) throw new Error("Unable to create the globe card back canvas");
   backContext.beginPath();
-  backContext.roundRect(0, 0, 256, 168, 24);
+  backContext.roundRect(0, 0, 192, 126, 18);
   backContext.fillStyle = "#d3d2cd";
   backContext.fill();
 
   const backTexture = new THREE.CanvasTexture(backCanvas);
   backTexture.colorSpace = THREE.SRGBColorSpace;
-  backTexture.anisotropy = 2;
+  backTexture.generateMipmaps = false;
+  backTexture.minFilter = THREE.LinearFilter;
+  backTexture.magFilter = THREE.LinearFilter;
   return backTexture;
 }
 
 function makeRadialGlowTexture(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
+  canvas.width = 96;
+  canvas.height = 96;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Unable to create glow texture");
-  const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  const gradient = ctx.createRadialGradient(48, 48, 0, 48, 48, 48);
   gradient.addColorStop(0, "rgba(180, 222, 255, 0.95)");
   gradient.addColorStop(0.28, "rgba(110, 175, 255, 0.42)");
   gradient.addColorStop(0.62, "rgba(130, 130, 255, 0.12)");
   gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
   ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 128, 128);
+  ctx.fillRect(0, 0, 96, 96);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
   return texture;
 }
 
-function makeFrontTexture(project: Project, index: number): THREE.CanvasTexture {
+function makeFrontTexture(
+  project: Project,
+  index: number,
+  enqueueUpload: (task: () => void) => void,
+): { texture: THREE.CanvasTexture; cancel: () => void } {
   const canvas = document.createElement("canvas");
-  canvas.width = 640;
-  canvas.height = 420;
+  canvas.width = TEX_W;
+  canvas.height = TEX_H;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Unable to create the globe artwork canvas");
 
   const colors = palettes[project.theme] ?? palettes.type;
   context.beginPath();
-  context.roundRect(0, 0, 640, 420, 58);
+  context.roundRect(0, 0, TEX_W, TEX_H, TEX_RADIUS);
   context.clip();
 
-  const background = context.createLinearGradient(0, 0, 640, 420);
+  const background = context.createLinearGradient(0, 0, TEX_W, TEX_H);
   background.addColorStop(0, colors[0]);
   background.addColorStop(1, colors[1]);
   context.fillStyle = background;
-  context.fillRect(0, 0, 640, 420);
+  context.fillRect(0, 0, TEX_W, TEX_H);
+
+  const sx = TEX_W / 640;
+  const sy = TEX_H / 420;
+  context.save();
+  context.scale(sx, sy);
 
   if (project.theme === "orb") {
     context.fillStyle = "#f7f5f1";
@@ -146,13 +163,10 @@ function makeFrontTexture(project: Project, index: number): THREE.CanvasTexture 
     gradient.addColorStop(0.32, "#92a7ff");
     gradient.addColorStop(0.62, "#7554e9");
     gradient.addColorStop(1, "#ef9fba");
-    context.shadowColor = "#8169ff";
-    context.shadowBlur = 32;
     context.fillStyle = gradient;
     context.beginPath();
     context.arc(330, 200, 112, 0, Math.PI * 2);
     context.fill();
-    context.shadowBlur = 0;
   } else if (project.theme === "predz") {
     context.fillStyle = "#111820";
     context.fillRect(0, 0, 640, 420);
@@ -268,29 +282,44 @@ function makeFrontTexture(project: Project, index: number): THREE.CanvasTexture 
   context.fillStyle = project.theme === "predz" ? "#c9d8d0" : "#4e4a46";
   context.font = "18px Arial";
   context.fillText(String(index + 1).padStart(2, "0"), 22, 30);
+  context.restore();
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
 
+  let disposed = false;
   const photo = new Image();
   photo.crossOrigin = "anonymous";
+  photo.decoding = "async";
   photo.onload = () => {
-    context.clearRect(0, 0, 640, 420);
-    context.save();
-    context.beginPath();
-    context.roundRect(0, 0, 640, 420, 58);
-    context.clip();
-    const scale = Math.max(640 / photo.width, 420 / photo.height);
-    const width = photo.width * scale;
-    const height = photo.height * scale;
-    context.drawImage(photo, (640 - width) / 2, (420 - height) / 2, width, height);
-    context.restore();
-    texture.needsUpdate = true;
+    if (disposed) return;
+    enqueueUpload(() => {
+      if (disposed) return;
+      context.clearRect(0, 0, TEX_W, TEX_H);
+      context.save();
+      context.beginPath();
+      context.roundRect(0, 0, TEX_W, TEX_H, TEX_RADIUS);
+      context.clip();
+      const scale = Math.max(TEX_W / photo.width, TEX_H / photo.height);
+      const width = photo.width * scale;
+      const height = photo.height * scale;
+      context.drawImage(photo, (TEX_W - width) / 2, (TEX_H - height) / 2, width, height);
+      context.restore();
+      texture.needsUpdate = true;
+    });
   };
   photo.src = photoUrls[index];
 
-  return texture;
+  return {
+    texture,
+    cancel: () => {
+      disposed = true;
+      photo.onload = null;
+    },
+  };
 }
 
 type CardAnimation = {
@@ -311,6 +340,7 @@ type CardProps = {
   assemblyClockRef: React.MutableRefObject<number>;
   sharedGeometry: THREE.PlaneGeometry;
   sharedBackTexture: THREE.CanvasTexture;
+  enqueueUpload: (task: () => void) => void;
 };
 
 function Card({
@@ -323,15 +353,17 @@ function Card({
   assemblyClockRef,
   sharedGeometry,
   sharedBackTexture,
+  enqueueUpload,
 }: CardProps) {
   const outerRef = useRef<THREE.Group | null>(null);
-  const echoRef = useRef<THREE.Mesh | null>(null);
-  const echoMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const frontMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const backMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const cardRef = useRef<THREE.Group | null>(null);
   const hovered = useRef(false);
-  const frontTexture = useMemo(() => makeFrontTexture(project, index), [project, index]);
+  const frontAsset = useMemo(
+    () => makeFrontTexture(project, index, enqueueUpload),
+    [project, index, enqueueUpload],
+  );
 
   const quaternion = useMemo(() => {
     const normal = new THREE.Vector3(...position).normalize();
@@ -346,7 +378,6 @@ function Card({
     () => ({
       targetVec: new THREE.Vector3(...position),
       pos: new THREE.Vector3(),
-      echoPos: new THREE.Vector3(),
       axis: new THREE.Vector3(...animation.swirlAxis).normalize(),
       spinEuler: new THREE.Euler(),
       spinQuat: new THREE.Quaternion(),
@@ -356,14 +387,13 @@ function Card({
   );
 
   useEffect(() => () => {
-    frontTexture.dispose();
-  }, [frontTexture]);
+    frontAsset.cancel();
+    frontAsset.texture.dispose();
+  }, [frontAsset]);
 
   useFrame((_, delta) => {
     const outer = outerRef.current;
     const inner = cardRef.current;
-    const echo = echoRef.current;
-    const echoMat = echoMatRef.current;
     const frontMat = frontMatRef.current;
     const backMat = backMatRef.current;
     if (!outer || !inner) return;
@@ -375,12 +405,10 @@ function Card({
       outer.scale.setScalar(1);
       if (frontMat) frontMat.opacity = 1;
       if (backMat) backMat.opacity = 0.3;
-      if (echo) echo.visible = false;
     } else if (introPhase === "waiting-consent") {
       outer.visible = false;
       outer.position.set(0, 0, 0);
       outer.scale.setScalar(0.001);
-      if (echo) echo.visible = false;
       return;
     } else {
       const elapsed = assemblyClockRef.current;
@@ -390,7 +418,6 @@ function Card({
         outer.visible = false;
         outer.position.set(0, 0, 0);
         outer.scale.setScalar(0.001);
-        if (echo) echo.visible = false;
         return;
       }
 
@@ -418,31 +445,12 @@ function Card({
         outer.scale.setScalar(0.24 + 0.76 * reveal);
         if (frontMat) frontMat.opacity = reveal;
         if (backMat) backMat.opacity = 0.3 * reveal;
-
-        // Lightweight motion-blur afterimage trailing behind the flying card
-        if (echo && echoMat && rawT > 0.04 && rawT < 0.94) {
-          const lagT = Math.max(0, rawT - 0.09);
-          const lagRadial = easeOutQuint(lagT);
-          const lagAngle = animation.swirlTurns * Math.pow(1 - lagT, 2.1);
-          scratch.echoPos
-            .copy(scratch.targetVec)
-            .multiplyScalar(lagRadial)
-            .applyAxisAngle(scratch.axis, lagAngle);
-          echo.visible = true;
-          echo.position.copy(scratch.echoPos);
-          echo.quaternion.copy(outer.quaternion);
-          echo.scale.setScalar(outer.scale.x * 0.95);
-          echoMat.opacity = 0.22 * Math.sin(rawT * Math.PI);
-        } else if (echo) {
-          echo.visible = false;
-        }
       } else {
         outer.position.copy(scratch.targetVec);
         outer.quaternion.copy(quaternion);
         outer.scale.setScalar(1);
         if (frontMat) frontMat.opacity = 1;
         if (backMat) backMat.opacity = 0.3;
-        if (echo) echo.visible = false;
       }
     }
 
@@ -471,29 +479,16 @@ function Card({
   };
 
   return (
-    <>
-      <group ref={outerRef} position={position} quaternion={quaternion}>
-        <group ref={cardRef}>
-          <mesh geometry={sharedGeometry} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
-            <meshBasicMaterial ref={frontMatRef} map={frontTexture} side={THREE.FrontSide} transparent alphaTest={0.02} toneMapped={false} />
-          </mesh>
-          <mesh geometry={sharedGeometry} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
-            <meshBasicMaterial ref={backMatRef} map={sharedBackTexture} side={THREE.BackSide} transparent opacity={0.3} alphaTest={0.02} toneMapped={false} />
-          </mesh>
-        </group>
+    <group ref={outerRef} position={position} quaternion={quaternion}>
+      <group ref={cardRef}>
+        <mesh geometry={sharedGeometry} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
+          <meshBasicMaterial ref={frontMatRef} map={frontAsset.texture} side={THREE.FrontSide} transparent toneMapped={false} />
+        </mesh>
+        <mesh geometry={sharedGeometry} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
+          <meshBasicMaterial ref={backMatRef} map={sharedBackTexture} side={THREE.BackSide} transparent opacity={0.3} toneMapped={false} />
+        </mesh>
       </group>
-      <mesh ref={echoRef} geometry={sharedGeometry} visible={false}>
-        <meshBasicMaterial
-          ref={echoMatRef}
-          map={frontTexture}
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </mesh>
-    </>
+    </group>
   );
 }
 
@@ -513,12 +508,12 @@ function SereneMotes({
 
   const geometry = useMemo(() => {
     const rand = makeSeededRandom(9421);
-    const count = 44;
+    const count = 36;
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i += 1) {
       const u = rand() * 2 - 1;
       const theta = rand() * Math.PI * 2;
-      const r = 2.75 + rand() * 1.15;
+      const r = 2.75 + rand() * 1.1;
       const ring = Math.sqrt(Math.max(0, 1 - u * u));
       positions[i * 3] = Math.cos(theta) * ring * r;
       positions[i * 3 + 1] = u * r;
@@ -542,18 +537,18 @@ function SereneMotes({
     }
 
     pts.visible = true;
-    pts.rotation.y -= delta * 0.055;
-    pts.rotation.z += delta * 0.018;
+    pts.rotation.y -= delta * 0.05;
+    pts.rotation.z += delta * 0.015;
 
     if (reducedMotion || introPhase === "complete") {
       pts.scale.setScalar(1);
-      mat.opacity = 0.22;
+      mat.opacity = 0.2;
     } else if (introPhase === "globe-assembling") {
       const p = THREE.MathUtils.clamp(assemblyClockRef.current / 1.85, 0, 1);
       pts.scale.setScalar(0.15 + 0.85 * easeOutCubic(p));
-      mat.opacity = 0.44 * Math.sin(Math.min(p, 0.85) * Math.PI) + 0.16 * p;
+      mat.opacity = 0.4 * Math.sin(Math.min(p, 0.85) * Math.PI) + 0.15 * p;
     } else {
-      mat.opacity = THREE.MathUtils.damp(mat.opacity, 0.22, 3, delta);
+      mat.opacity = THREE.MathUtils.damp(mat.opacity, 0.2, 3, delta);
       pts.scale.setScalar(THREE.MathUtils.damp(pts.scale.x, 1, 4, delta));
     }
   });
@@ -563,9 +558,9 @@ function SereneMotes({
       <pointsMaterial
         ref={matRef}
         map={glowTexture}
-        size={0.26}
+        size={0.24}
         transparent
-        opacity={0.22}
+        opacity={0.2}
         depthWrite={false}
         blending={THREE.AdditiveBlending}
         toneMapped={false}
@@ -611,12 +606,19 @@ function Globe({
   const dockClockRef = useRef(0);
   const prevPosRef = useRef(new THREE.Vector3());
   const posInitializedRef = useRef(false);
+  const uploadQueueRef = useRef<(() => void)[]>([]);
   const drag = useInertiaDrag(dragGroup);
   const { gl, viewport } = useThree();
 
   const [shuffleSeed] = useState(() => Math.floor(Math.random() * 0xffffffff));
-
   const layoutMetricsRef = useRef<LayoutMetrics | null>(null);
+
+  const enqueueUpload = useMemo(
+    () => (task: () => void) => {
+      uploadQueueRef.current.push(task);
+    },
+    [],
+  );
 
   useEffect(() => {
     const heroEl = heroRef?.current;
@@ -745,15 +747,21 @@ function Globe({
   }, []);
 
   useFrame((_, delta) => {
-    const dt = Math.min(delta, 0.05);
+    // Batch up to 2 photo canvas draws/uploads per frame to avoid main-thread frame spikes
+    for (let i = 0; i < 2 && uploadQueueRef.current.length > 0; i += 1) {
+      const task = uploadQueueRef.current.shift();
+      task?.();
+    }
+
+    const dt = Math.min(delta, 0.033);
     const metrics = layoutMetricsRef.current;
 
     let entryWorldX = 0;
     let entryWorldY = 0;
     let dockWorldX = 0;
     let dockWorldY = 0;
-    let restingScale = 1.24;
-    let bigScale = 1.72;
+    let restingScale = 1.08;
+    let bigScale = 1.56;
 
     if (metrics) {
       entryWorldX = (metrics.entryOffsetX / metrics.heroWidth - 0.5) * viewport.width;
@@ -763,14 +771,12 @@ function Globe({
 
       const slotWidthWorld = (metrics.slotWidth / metrics.heroWidth) * viewport.width;
       const slotHeightWorld = (metrics.slotHeight / metrics.heroHeight) * viewport.height;
-      const restingDiameter = Math.min(slotWidthWorld, slotHeightWorld) * 0.78;
-      restingScale = THREE.MathUtils.clamp(restingDiameter / (2 * 2.55), 0.78, 1.44);
+      // Match original compact resting sphere radius (~250-270px radius on desktop)
+      const restingDiameter = Math.min(slotWidthWorld, slotHeightWorld) * 0.68;
+      restingScale = THREE.MathUtils.clamp(restingDiameter / (2 * 2.55), 0.72, 1.18);
 
-      const maxCenterDiameter = Math.min(viewport.width * 0.8, viewport.height * 0.82);
-      bigScale = Math.min(maxCenterDiameter / (2 * 2.55), restingScale * 1.42);
-      if (bigScale < restingScale * 1.24) {
-        bigScale = Math.min(maxCenterDiameter / (2 * 2.55), restingScale * 1.28);
-      }
+      const maxCenterDiameter = Math.min(viewport.width * 0.78, viewport.height * 0.8);
+      bigScale = Math.min(maxCenterDiameter / (2 * 2.55), restingScale * 1.44);
     }
 
     if (introPhase === "waiting-consent") {
@@ -778,7 +784,7 @@ function Globe({
       dockClockRef.current = 0;
       posInitializedRef.current = false;
       if (motionGroup.current) {
-        motionGroup.current.position.set(entryWorldX, entryWorldY, -2.2);
+        motionGroup.current.position.set(entryWorldX, entryWorldY, -3.5);
         motionGroup.current.scale.setScalar(bigScale * 0.78);
       }
       if (wakeRef.current) wakeRef.current.visible = false;
@@ -801,15 +807,15 @@ function Globe({
         motionGroup.current.position.set(dockWorldX, dockWorldY, 0);
         motionGroup.current.scale.setScalar(restingScale);
       } else if (introPhase === "globe-assembling") {
-        const assembleProgress = THREE.MathUtils.clamp(assemblyClockRef.current / 1.1, 0, 1);
+        const assembleProgress = THREE.MathUtils.clamp(assemblyClockRef.current / 1.15, 0, 1);
         const forwardEase = easeOutCubic(assembleProgress);
         motionGroup.current.position.set(
           entryWorldX,
           entryWorldY,
-          THREE.MathUtils.lerp(-2.2, 0.35, forwardEase),
+          THREE.MathUtils.lerp(-3.5, 0.45, forwardEase),
         );
         motionGroup.current.scale.setScalar(
-          THREE.MathUtils.lerp(bigScale * 0.8, bigScale, forwardEase),
+          THREE.MathUtils.lerp(bigScale * 0.78, bigScale, forwardEase),
         );
       } else {
         const dockT = THREE.MathUtils.clamp(dockClockRef.current / DOCK_DURATION, 0, 1);
@@ -817,14 +823,13 @@ function Globe({
         motionGroup.current.position.set(
           THREE.MathUtils.lerp(entryWorldX, dockWorldX, dockEase),
           THREE.MathUtils.lerp(entryWorldY, dockWorldY, dockEase),
-          THREE.MathUtils.lerp(0.35, 0, dockEase),
+          THREE.MathUtils.lerp(0.45, 0, dockEase),
         );
         motionGroup.current.scale.setScalar(
           THREE.MathUtils.lerp(bigScale, restingScale, dockEase),
         );
       }
 
-      // Luminous motion-blur wake aligned with the globe's travel vector
       if (wakeRef.current && wakeMatRef.current) {
         if (!posInitializedRef.current) {
           prevPosRef.current.copy(motionGroup.current.position);
@@ -839,7 +844,7 @@ function Globe({
         const totalSpeed = Math.hypot(speed2D, vz);
         const targetOpacity =
           !reducedMotion && introPhase !== "complete"
-            ? THREE.MathUtils.clamp(totalSpeed * 0.045, 0, 0.42)
+            ? THREE.MathUtils.clamp(totalSpeed * 0.045, 0, 0.38)
             : 0;
 
         wakeMatRef.current.opacity = THREE.MathUtils.damp(
@@ -851,8 +856,8 @@ function Globe({
 
         if (wakeMatRef.current.opacity > 0.008) {
           wakeRef.current.visible = true;
-          const stretch = 1 + Math.min(speed2D * 0.06, 0.65);
-          wakeRef.current.scale.set(7.6 * stretch, 6.8, 1);
+          const stretch = 1 + Math.min(speed2D * 0.06, 0.6);
+          wakeRef.current.scale.set(7.4 * stretch, 6.6, 1);
           if (speed2D > 0.05) {
             wakeRef.current.rotation.z = Math.atan2(vy, vx);
           }
@@ -870,9 +875,9 @@ function Globe({
       );
 
       if (introPhase === "globe-assembling" && !reducedMotion) {
-        const spinSpeed = 0.085 + 0.42 * Math.pow(1 - assemblyProgress, 2.1);
+        const spinSpeed = 0.085 + 0.4 * Math.pow(1 - assemblyProgress, 2.1);
         group.current.rotation.y += dt * spinSpeed;
-        group.current.rotation.x = Math.sin(assemblyProgress * Math.PI) * 0.07 * (1 - assemblyProgress);
+        group.current.rotation.x = Math.sin(assemblyProgress * Math.PI) * 0.06 * (1 - assemblyProgress);
       } else {
         group.current.rotation.y += dt * 0.085;
         group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, 0, 4, dt);
@@ -960,6 +965,7 @@ function Globe({
                 assemblyClockRef={assemblyClockRef}
                 sharedGeometry={sharedGeometry}
                 sharedBackTexture={sharedBackTexture}
+                enqueueUpload={enqueueUpload}
               />
             ))}
           </group>
@@ -996,8 +1002,8 @@ export default function ProjectSphereCanvas({
       <Canvas
         className={styles.canvas}
         frameloop={isWaiting ? "demand" : "always"}
-        camera={{ position: [0, 0, 11.5], fov: 48 }}
-        dpr={[1, 1.5]}
+        camera={{ position: [0, 0, 21], fov: 26 }}
+        dpr={[1, 1.25]}
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
       >
         <ambientLight intensity={1} />
