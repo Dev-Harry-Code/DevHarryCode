@@ -12,10 +12,6 @@ type Project = {
   title: string;
   theme: string;
 };
-type Artwork = {
-  texture: THREE.CanvasTexture;
-  backTexture: THREE.CanvasTexture;
-};
 
 const palettes: Record<string, Palette> = {
   orb: ["#f8f7f4", "#f5b7c7", "#5c65e8"],
@@ -66,7 +62,7 @@ const pexelsPhotoIds = [
   2858265, 32420917, 6661427, 33931028, 6498997, 17662493,
 ];
 const photoUrls = pexelsPhotoIds.map(
-  (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=900`,
+  (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=640`,
 );
 
 function makeSeededRandom(seed: number) {
@@ -81,13 +77,50 @@ function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-function easeOutBackMild(t: number) {
-  const c1 = 0.85;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+function easeOutQuint(t: number) {
+  return 1 - Math.pow(1 - t, 5);
 }
 
-function makeArtwork(project: Project, index: number): Artwork {
+function easeInOutCubic(t: number) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function makeSharedBackTexture(): THREE.CanvasTexture {
+  const backCanvas = document.createElement("canvas");
+  backCanvas.width = 256;
+  backCanvas.height = 168;
+  const backContext = backCanvas.getContext("2d");
+  if (!backContext) throw new Error("Unable to create the globe card back canvas");
+  backContext.beginPath();
+  backContext.roundRect(0, 0, 256, 168, 24);
+  backContext.fillStyle = "#d3d2cd";
+  backContext.fill();
+
+  const backTexture = new THREE.CanvasTexture(backCanvas);
+  backTexture.colorSpace = THREE.SRGBColorSpace;
+  backTexture.anisotropy = 2;
+  return backTexture;
+}
+
+function makeRadialGlowTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Unable to create glow texture");
+  const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gradient.addColorStop(0, "rgba(180, 222, 255, 0.95)");
+  gradient.addColorStop(0.28, "rgba(110, 175, 255, 0.42)");
+  gradient.addColorStop(0.62, "rgba(130, 130, 255, 0.12)");
+  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 128, 128);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function makeFrontTexture(project: Project, index: number): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = 640;
   canvas.height = 420;
@@ -114,7 +147,7 @@ function makeArtwork(project: Project, index: number): Artwork {
     gradient.addColorStop(0.62, "#7554e9");
     gradient.addColorStop(1, "#ef9fba");
     context.shadowColor = "#8169ff";
-    context.shadowBlur = 38;
+    context.shadowBlur = 32;
     context.fillStyle = gradient;
     context.beginPath();
     context.arc(330, 200, 112, 0, Math.PI * 2);
@@ -236,16 +269,6 @@ function makeArtwork(project: Project, index: number): Artwork {
   context.font = "18px Arial";
   context.fillText(String(index + 1).padStart(2, "0"), 22, 30);
 
-  const backCanvas = document.createElement("canvas");
-  backCanvas.width = 640;
-  backCanvas.height = 420;
-  const backContext = backCanvas.getContext("2d");
-  if (!backContext) throw new Error("Unable to create the globe card back canvas");
-  backContext.beginPath();
-  backContext.roundRect(0, 0, 640, 420, 58);
-  backContext.fillStyle = "#d3d2cd";
-  backContext.fill();
-
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
@@ -267,10 +290,7 @@ function makeArtwork(project: Project, index: number): Artwork {
   };
   photo.src = photoUrls[index];
 
-  const backTexture = new THREE.CanvasTexture(backCanvas);
-  backTexture.colorSpace = THREE.SRGBColorSpace;
-  backTexture.anisotropy = 4;
-  return { texture, backTexture };
+  return texture;
 }
 
 type CardAnimation = {
@@ -289,6 +309,8 @@ type CardProps = {
   introPhase: IntroPhase;
   reducedMotion: boolean;
   assemblyClockRef: React.MutableRefObject<number>;
+  sharedGeometry: THREE.PlaneGeometry;
+  sharedBackTexture: THREE.CanvasTexture;
 };
 
 function Card({
@@ -299,11 +321,17 @@ function Card({
   introPhase,
   reducedMotion,
   assemblyClockRef,
+  sharedGeometry,
+  sharedBackTexture,
 }: CardProps) {
   const outerRef = useRef<THREE.Group | null>(null);
+  const echoRef = useRef<THREE.Mesh | null>(null);
+  const echoMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const frontMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const backMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const cardRef = useRef<THREE.Group | null>(null);
   const hovered = useRef(false);
-  const artwork = useMemo(() => makeArtwork(project, index), [project, index]);
+  const frontTexture = useMemo(() => makeFrontTexture(project, index), [project, index]);
 
   const quaternion = useMemo(() => {
     const normal = new THREE.Vector3(...position).normalize();
@@ -318,6 +346,7 @@ function Card({
     () => ({
       targetVec: new THREE.Vector3(...position),
       pos: new THREE.Vector3(),
+      echoPos: new THREE.Vector3(),
       axis: new THREE.Vector3(...animation.swirlAxis).normalize(),
       spinEuler: new THREE.Euler(),
       spinQuat: new THREE.Quaternion(),
@@ -327,13 +356,16 @@ function Card({
   );
 
   useEffect(() => () => {
-    artwork.texture.dispose();
-    artwork.backTexture.dispose();
-  }, [artwork]);
+    frontTexture.dispose();
+  }, [frontTexture]);
 
   useFrame((_, delta) => {
     const outer = outerRef.current;
     const inner = cardRef.current;
+    const echo = echoRef.current;
+    const echoMat = echoMatRef.current;
+    const frontMat = frontMatRef.current;
+    const backMat = backMatRef.current;
     if (!outer || !inner) return;
 
     if (reducedMotion || introPhase === "complete") {
@@ -341,10 +373,14 @@ function Card({
       outer.position.copy(scratch.targetVec);
       outer.quaternion.copy(quaternion);
       outer.scale.setScalar(1);
+      if (frontMat) frontMat.opacity = 1;
+      if (backMat) backMat.opacity = 0.3;
+      if (echo) echo.visible = false;
     } else if (introPhase === "waiting-consent") {
       outer.visible = false;
       outer.position.set(0, 0, 0);
       outer.scale.setScalar(0.001);
+      if (echo) echo.visible = false;
       return;
     } else {
       const elapsed = assemblyClockRef.current;
@@ -354,21 +390,22 @@ function Card({
         outer.visible = false;
         outer.position.set(0, 0, 0);
         outer.scale.setScalar(0.001);
+        if (echo) echo.visible = false;
         return;
       }
 
       outer.visible = true;
 
       if (rawT < 1) {
-        const radial = easeOutBackMild(rawT);
-        const orbitAngle = animation.swirlTurns * Math.pow(1 - rawT, 1.85);
+        const radial = easeOutQuint(rawT);
+        const orbitAngle = animation.swirlTurns * Math.pow(1 - rawT, 2.1);
         scratch.pos
           .copy(scratch.targetVec)
           .multiplyScalar(radial)
           .applyAxisAngle(scratch.axis, orbitAngle);
         outer.position.copy(scratch.pos);
 
-        const spinDecay = Math.pow(1 - easeOutCubic(rawT), 1.4);
+        const spinDecay = Math.pow(1 - easeOutCubic(rawT), 1.6);
         scratch.spinEuler.set(
           animation.spinAngles[0] * spinDecay,
           animation.spinAngles[1] * spinDecay,
@@ -377,24 +414,40 @@ function Card({
         scratch.spinQuat.setFromEuler(scratch.spinEuler);
         outer.quaternion.copy(quaternion).multiply(scratch.spinQuat);
 
-        const grow = easeOutCubic(Math.min(rawT * 1.45, 1));
-        const lockPulse = rawT >= 0.86 ? Math.sin(((rawT - 0.86) / 0.14) * Math.PI) * 0.08 : 0;
-        outer.scale.setScalar((0.12 + 0.88 * grow) * (1 + lockPulse));
+        const reveal = easeOutCubic(Math.min(rawT * 1.9, 1));
+        outer.scale.setScalar(0.24 + 0.76 * reveal);
+        if (frontMat) frontMat.opacity = reveal;
+        if (backMat) backMat.opacity = 0.3 * reveal;
+
+        // Lightweight motion-blur afterimage trailing behind the flying card
+        if (echo && echoMat && rawT > 0.04 && rawT < 0.94) {
+          const lagT = Math.max(0, rawT - 0.09);
+          const lagRadial = easeOutQuint(lagT);
+          const lagAngle = animation.swirlTurns * Math.pow(1 - lagT, 2.1);
+          scratch.echoPos
+            .copy(scratch.targetVec)
+            .multiplyScalar(lagRadial)
+            .applyAxisAngle(scratch.axis, lagAngle);
+          echo.visible = true;
+          echo.position.copy(scratch.echoPos);
+          echo.quaternion.copy(outer.quaternion);
+          echo.scale.setScalar(outer.scale.x * 0.95);
+          echoMat.opacity = 0.22 * Math.sin(rawT * Math.PI);
+        } else if (echo) {
+          echo.visible = false;
+        }
       } else {
         outer.position.copy(scratch.targetVec);
         outer.quaternion.copy(quaternion);
-        const postElapsed = elapsed - animation.delay - animation.flightDuration;
-        if (postElapsed < 0.16) {
-          const p = postElapsed / 0.16;
-          outer.scale.setScalar(1 + Math.sin(p * Math.PI) * 0.04 * (1 - p));
-        } else {
-          outer.scale.setScalar(1);
-        }
+        outer.scale.setScalar(1);
+        if (frontMat) frontMat.opacity = 1;
+        if (backMat) backMat.opacity = 0.3;
+        if (echo) echo.visible = false;
       }
     }
 
     const easing = 1 - Math.exp(-delta * 12);
-    const interactive = introPhase !== "waiting-consent" && introPhase !== "globe-assembling";
+    const interactive = introPhase === "hero-text" || introPhase === "nav-open" || introPhase === "complete";
     const targetScale = interactive && hovered.current ? 1.09 : 1;
     scratch.scaleVec.set(targetScale, targetScale, 1);
     inner.scale.lerp(scratch.scaleVec, easing);
@@ -407,7 +460,7 @@ function Card({
   });
 
   const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
-    if (introPhase === "waiting-consent" || introPhase === "globe-assembling") return;
+    if (introPhase !== "hero-text" && introPhase !== "nav-open" && introPhase !== "complete") return;
     event.stopPropagation();
     hovered.current = true;
     document.body.style.cursor = "pointer";
@@ -418,40 +471,195 @@ function Card({
   };
 
   return (
-    <group ref={outerRef} position={position} quaternion={quaternion}>
-      <group ref={cardRef}>
-        <mesh onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
-          <planeGeometry args={[1.04, 0.68]} />
-          <meshBasicMaterial map={artwork.texture} side={THREE.FrontSide} transparent alphaTest={0.02} toneMapped={false} />
-        </mesh>
-        <mesh onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
-          <planeGeometry args={[1.04, 0.68]} />
-          <meshBasicMaterial map={artwork.backTexture} side={THREE.BackSide} transparent opacity={0.3} alphaTest={0.02} toneMapped={false} />
-        </mesh>
+    <>
+      <group ref={outerRef} position={position} quaternion={quaternion}>
+        <group ref={cardRef}>
+          <mesh geometry={sharedGeometry} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
+            <meshBasicMaterial ref={frontMatRef} map={frontTexture} side={THREE.FrontSide} transparent alphaTest={0.02} toneMapped={false} />
+          </mesh>
+          <mesh geometry={sharedGeometry} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
+            <meshBasicMaterial ref={backMatRef} map={sharedBackTexture} side={THREE.BackSide} transparent opacity={0.3} alphaTest={0.02} toneMapped={false} />
+          </mesh>
+        </group>
       </group>
-    </group>
+      <mesh ref={echoRef} geometry={sharedGeometry} visible={false}>
+        <meshBasicMaterial
+          ref={echoMatRef}
+          map={frontTexture}
+          side={THREE.DoubleSide}
+          transparent
+          opacity={0}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </>
   );
 }
 
-const TOTAL_ASSEMBLY_TIME = 1.82;
+function SereneMotes({
+  glowTexture,
+  introPhase,
+  reducedMotion,
+  assemblyClockRef,
+}: {
+  glowTexture: THREE.CanvasTexture;
+  introPhase: IntroPhase;
+  reducedMotion: boolean;
+  assemblyClockRef: React.MutableRefObject<number>;
+}) {
+  const pointsRef = useRef<THREE.Points | null>(null);
+  const matRef = useRef<THREE.PointsMaterial | null>(null);
+
+  const geometry = useMemo(() => {
+    const rand = makeSeededRandom(9421);
+    const count = 44;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i += 1) {
+      const u = rand() * 2 - 1;
+      const theta = rand() * Math.PI * 2;
+      const r = 2.75 + rand() * 1.15;
+      const ring = Math.sqrt(Math.max(0, 1 - u * u));
+      positions[i * 3] = Math.cos(theta) * ring * r;
+      positions[i * 3 + 1] = u * r;
+      positions[i * 3 + 2] = Math.sin(theta) * ring * r;
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    return geom;
+  }, []);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  useFrame((_, delta) => {
+    const pts = pointsRef.current;
+    const mat = matRef.current;
+    if (!pts || !mat) return;
+
+    if (introPhase === "waiting-consent") {
+      pts.visible = false;
+      return;
+    }
+
+    pts.visible = true;
+    pts.rotation.y -= delta * 0.055;
+    pts.rotation.z += delta * 0.018;
+
+    if (reducedMotion || introPhase === "complete") {
+      pts.scale.setScalar(1);
+      mat.opacity = 0.22;
+    } else if (introPhase === "globe-assembling") {
+      const p = THREE.MathUtils.clamp(assemblyClockRef.current / 1.85, 0, 1);
+      pts.scale.setScalar(0.15 + 0.85 * easeOutCubic(p));
+      mat.opacity = 0.44 * Math.sin(Math.min(p, 0.85) * Math.PI) + 0.16 * p;
+    } else {
+      mat.opacity = THREE.MathUtils.damp(mat.opacity, 0.22, 3, delta);
+      pts.scale.setScalar(THREE.MathUtils.damp(pts.scale.x, 1, 4, delta));
+    }
+  });
+
+  return (
+    <points ref={pointsRef} geometry={geometry}>
+      <pointsMaterial
+        ref={matRef}
+        map={glowTexture}
+        size={0.26}
+        transparent
+        opacity={0.22}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        toneMapped={false}
+      />
+    </points>
+  );
+}
+
+const TOTAL_ASSEMBLY_TIME = 2.05;
+const DOCK_DURATION = 1.02;
+
+interface LayoutMetrics {
+  heroWidth: number;
+  heroHeight: number;
+  slotOffsetX: number;
+  slotOffsetY: number;
+  slotWidth: number;
+  slotHeight: number;
+  entryOffsetX: number;
+  entryOffsetY: number;
+}
 
 function Globe({
   introPhase,
   reducedMotion,
+  heroRef,
+  globeSlotRef,
 }: {
   introPhase: IntroPhase;
   reducedMotion: boolean;
+  heroRef?: React.RefObject<HTMLElement | null>;
+  globeSlotRef?: React.RefObject<HTMLDivElement | null>;
 }) {
+  const motionGroup = useRef<THREE.Group | null>(null);
   const group = useRef<THREE.Group | null>(null);
   const dragGroup = useRef<THREE.Group | null>(null);
   const tilt = useRef<THREE.Group | null>(null);
+  const wakeRef = useRef<THREE.Mesh | null>(null);
+  const wakeMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const pointer = useRef({ x: 0, y: 0 });
+  const sphereHovered = useRef(false);
   const assemblyClockRef = useRef(0);
+  const dockClockRef = useRef(0);
+  const prevPosRef = useRef(new THREE.Vector3());
+  const posInitializedRef = useRef(false);
   const drag = useInertiaDrag(dragGroup);
-  const { gl } = useThree();
+  const { gl, viewport } = useThree();
 
-  // Generate a fresh random seed on each mount so cards rearrange on every reload
   const [shuffleSeed] = useState(() => Math.floor(Math.random() * 0xffffffff));
+
+  const layoutMetricsRef = useRef<LayoutMetrics | null>(null);
+
+  useEffect(() => {
+    const heroEl = heroRef?.current;
+    const slotEl = globeSlotRef?.current;
+    if (!heroEl || !slotEl) return;
+
+    const measure = () => {
+      const heroRect = heroEl.getBoundingClientRect();
+      const slotRect = slotEl.getBoundingClientRect();
+      if (!heroRect.width || !heroRect.height || !slotRect.width || !slotRect.height) return;
+      layoutMetricsRef.current = {
+        heroWidth: heroRect.width,
+        heroHeight: heroRect.height,
+        slotOffsetX: slotRect.left - heroRect.left + slotRect.width / 2,
+        slotOffsetY: slotRect.top - heroRect.top + slotRect.height / 2,
+        slotWidth: slotRect.width,
+        slotHeight: slotRect.height,
+        entryOffsetX: heroRect.width / 2,
+        entryOffsetY: Math.min(heroRect.height / 2, window.innerHeight / 2),
+      };
+    };
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(heroEl);
+    observer.observe(slotEl);
+    window.addEventListener("resize", measure, { passive: true });
+    measure();
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [heroRef, globeSlotRef]);
+
+  const sharedGeometry = useMemo(() => new THREE.PlaneGeometry(1.04, 0.68), []);
+  const sharedBackTexture = useMemo(() => makeSharedBackTexture(), []);
+  const glowTexture = useMemo(() => makeRadialGlowTexture(), []);
+
+  useEffect(() => () => {
+    sharedGeometry.dispose();
+    sharedBackTexture.dispose();
+    glowTexture.dispose();
+  }, [sharedGeometry, sharedBackTexture, glowTexture]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -463,6 +671,8 @@ function Globe({
     const resetPointer = () => {
       pointer.current.x = 0;
       pointer.current.y = 0;
+      sphereHovered.current = false;
+      document.body.style.cursor = "";
     };
     canvas.addEventListener("pointermove", onPointerMove, { passive: true });
     canvas.addEventListener("pointerleave", resetPointer, { passive: true });
@@ -489,18 +699,18 @@ function Globe({
     return order.map((photoIndex, index) => {
       const rank = launchOrder[index];
       const pairGroup = Math.floor(rank / 2);
-      const delay = pairGroup * 0.042 + (rank % 2) * 0.016;
+      const delay = pairGroup * 0.044 + (rank % 2) * 0.018;
       const swirlSign = rank % 2 === 0 ? 1 : -1;
-      const swirlTurns = swirlSign * (1.25 + rand() * 1.1) * Math.PI;
+      const swirlTurns = swirlSign * (0.7 + rand() * 0.75) * Math.PI;
       const swirlAxis: [number, number, number] = [
-        (rand() - 0.5) * 0.65,
+        (rand() - 0.5) * 0.55,
         1,
-        (rand() - 0.5) * 0.65,
+        (rand() - 0.5) * 0.55,
       ];
       const spinAngles: [number, number, number] = [
-        (rand() - 0.5) * 3.6 * Math.PI,
-        (rand() - 0.5) * 4.2 * Math.PI,
+        (rand() - 0.5) * 1.8 * Math.PI,
         (rand() - 0.5) * 2.4 * Math.PI,
+        (rand() - 0.5) * 1.2 * Math.PI,
       ];
 
       return {
@@ -508,7 +718,7 @@ function Globe({
         photoIndex,
         animation: {
           delay,
-          flightDuration: 0.6,
+          flightDuration: 0.82,
           swirlTurns,
           swirlAxis,
           spinAngles,
@@ -535,18 +745,121 @@ function Globe({
   }, []);
 
   useFrame((_, delta) => {
+    const dt = Math.min(delta, 0.05);
+    const metrics = layoutMetricsRef.current;
+
+    let entryWorldX = 0;
+    let entryWorldY = 0;
+    let dockWorldX = 0;
+    let dockWorldY = 0;
+    let restingScale = 1.24;
+    let bigScale = 1.72;
+
+    if (metrics) {
+      entryWorldX = (metrics.entryOffsetX / metrics.heroWidth - 0.5) * viewport.width;
+      entryWorldY = -(metrics.entryOffsetY / metrics.heroHeight - 0.5) * viewport.height;
+      dockWorldX = (metrics.slotOffsetX / metrics.heroWidth - 0.5) * viewport.width;
+      dockWorldY = -(metrics.slotOffsetY / metrics.heroHeight - 0.5) * viewport.height;
+
+      const slotWidthWorld = (metrics.slotWidth / metrics.heroWidth) * viewport.width;
+      const slotHeightWorld = (metrics.slotHeight / metrics.heroHeight) * viewport.height;
+      const restingDiameter = Math.min(slotWidthWorld, slotHeightWorld) * 0.78;
+      restingScale = THREE.MathUtils.clamp(restingDiameter / (2 * 2.55), 0.78, 1.44);
+
+      const maxCenterDiameter = Math.min(viewport.width * 0.8, viewport.height * 0.82);
+      bigScale = Math.min(maxCenterDiameter / (2 * 2.55), restingScale * 1.42);
+      if (bigScale < restingScale * 1.24) {
+        bigScale = Math.min(maxCenterDiameter / (2 * 2.55), restingScale * 1.28);
+      }
+    }
+
     if (introPhase === "waiting-consent") {
       assemblyClockRef.current = 0;
-      if (group.current) {
-        group.current.scale.setScalar(1.62);
+      dockClockRef.current = 0;
+      posInitializedRef.current = false;
+      if (motionGroup.current) {
+        motionGroup.current.position.set(entryWorldX, entryWorldY, -2.2);
+        motionGroup.current.scale.setScalar(bigScale * 0.78);
       }
+      if (wakeRef.current) wakeRef.current.visible = false;
       return;
     }
 
     if (introPhase === "complete" || reducedMotion) {
       assemblyClockRef.current = TOTAL_ASSEMBLY_TIME + 1;
+      dockClockRef.current = DOCK_DURATION + 1;
+    } else if (introPhase === "globe-assembling") {
+      assemblyClockRef.current += dt;
+      dockClockRef.current = 0;
     } else {
-      assemblyClockRef.current += Math.min(delta, 0.05);
+      assemblyClockRef.current += dt;
+      dockClockRef.current += dt;
+    }
+
+    if (motionGroup.current) {
+      if (reducedMotion || introPhase === "complete") {
+        motionGroup.current.position.set(dockWorldX, dockWorldY, 0);
+        motionGroup.current.scale.setScalar(restingScale);
+      } else if (introPhase === "globe-assembling") {
+        const assembleProgress = THREE.MathUtils.clamp(assemblyClockRef.current / 1.1, 0, 1);
+        const forwardEase = easeOutCubic(assembleProgress);
+        motionGroup.current.position.set(
+          entryWorldX,
+          entryWorldY,
+          THREE.MathUtils.lerp(-2.2, 0.35, forwardEase),
+        );
+        motionGroup.current.scale.setScalar(
+          THREE.MathUtils.lerp(bigScale * 0.8, bigScale, forwardEase),
+        );
+      } else {
+        const dockT = THREE.MathUtils.clamp(dockClockRef.current / DOCK_DURATION, 0, 1);
+        const dockEase = easeInOutCubic(dockT);
+        motionGroup.current.position.set(
+          THREE.MathUtils.lerp(entryWorldX, dockWorldX, dockEase),
+          THREE.MathUtils.lerp(entryWorldY, dockWorldY, dockEase),
+          THREE.MathUtils.lerp(0.35, 0, dockEase),
+        );
+        motionGroup.current.scale.setScalar(
+          THREE.MathUtils.lerp(bigScale, restingScale, dockEase),
+        );
+      }
+
+      // Luminous motion-blur wake aligned with the globe's travel vector
+      if (wakeRef.current && wakeMatRef.current) {
+        if (!posInitializedRef.current) {
+          prevPosRef.current.copy(motionGroup.current.position);
+          posInitializedRef.current = true;
+        }
+        const vx = (motionGroup.current.position.x - prevPosRef.current.x) / Math.max(dt, 0.008);
+        const vy = (motionGroup.current.position.y - prevPosRef.current.y) / Math.max(dt, 0.008);
+        const vz = (motionGroup.current.position.z - prevPosRef.current.z) / Math.max(dt, 0.008);
+        prevPosRef.current.copy(motionGroup.current.position);
+
+        const speed2D = Math.hypot(vx, vy);
+        const totalSpeed = Math.hypot(speed2D, vz);
+        const targetOpacity =
+          !reducedMotion && introPhase !== "complete"
+            ? THREE.MathUtils.clamp(totalSpeed * 0.045, 0, 0.42)
+            : 0;
+
+        wakeMatRef.current.opacity = THREE.MathUtils.damp(
+          wakeMatRef.current.opacity,
+          targetOpacity,
+          6,
+          dt,
+        );
+
+        if (wakeMatRef.current.opacity > 0.008) {
+          wakeRef.current.visible = true;
+          const stretch = 1 + Math.min(speed2D * 0.06, 0.65);
+          wakeRef.current.scale.set(7.6 * stretch, 6.8, 1);
+          if (speed2D > 0.05) {
+            wakeRef.current.rotation.z = Math.atan2(vy, vx);
+          }
+        } else {
+          wakeRef.current.visible = false;
+        }
+      }
     }
 
     if (group.current) {
@@ -557,63 +870,112 @@ function Globe({
       );
 
       if (introPhase === "globe-assembling" && !reducedMotion) {
-        // Energetic introductory revolution that settles cleanly as cards lock into position
-        const spinSpeed = 0.1 + 1.15 * Math.pow(1 - assemblyProgress, 2.2);
-        group.current.rotation.y += delta * spinSpeed;
-        group.current.rotation.x = Math.sin(assemblyProgress * Math.PI) * 0.15 * (1 - assemblyProgress);
+        const spinSpeed = 0.085 + 0.42 * Math.pow(1 - assemblyProgress, 2.1);
+        group.current.rotation.y += dt * spinSpeed;
+        group.current.rotation.x = Math.sin(assemblyProgress * Math.PI) * 0.07 * (1 - assemblyProgress);
       } else {
-        group.current.rotation.y += delta * 0.1;
-        group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, 0, 5, delta);
+        group.current.rotation.y += dt * 0.085;
+        group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, 0, 4, dt);
       }
-
-      const targetScale = introPhase === "globe-assembling" && !reducedMotion ? 1.62 : 1.5;
-      const scale = THREE.MathUtils.damp(group.current.scale.x, targetScale, 4.5, delta);
-      group.current.scale.setScalar(scale);
     }
 
     if (tilt.current) {
-      const interactive = introPhase !== "globe-assembling";
+      const interactive = introPhase === "hero-text" || introPhase === "nav-open" || introPhase === "complete";
       tilt.current.rotation.x = THREE.MathUtils.damp(
         tilt.current.rotation.x,
-        interactive ? -pointer.current.y * 0.08 : 0,
+        interactive ? -pointer.current.y * 0.075 : 0,
         3,
-        delta,
+        dt,
       );
       tilt.current.rotation.y = THREE.MathUtils.damp(
         tilt.current.rotation.y,
-        interactive ? pointer.current.x * 0.08 : 0,
+        interactive ? pointer.current.x * 0.075 : 0,
         3,
-        delta,
+        dt,
       );
     }
   });
 
-  const interactiveDrag =
-    introPhase !== "waiting-consent" && introPhase !== "globe-assembling" ? drag : {};
+  const interactive = introPhase === "hero-text" || introPhase === "nav-open" || introPhase === "complete";
+  const interactiveDrag = interactive ? drag : {};
 
   return (
-    <group ref={group}>
-      <group ref={dragGroup} {...interactiveDrag}>
-        <group ref={tilt}>
-          {orbitCards.map((card, index) => (
-            <Card
-              key={card.photoIndex}
-              project={card.project}
-              index={card.photoIndex}
-              position={points[index]}
-              animation={card.animation}
-              introPhase={introPhase}
-              reducedMotion={reducedMotion}
-              assemblyClockRef={assemblyClockRef}
-            />
-          ))}
+    <group ref={motionGroup}>
+      {/* Motion-blur luminous wake during entry & ease-in-out glide */}
+      <mesh ref={wakeRef} position={[0, 0, -0.45]} visible={false}>
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial
+          ref={wakeMatRef}
+          map={glowTexture}
+          transparent
+          opacity={0}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          toneMapped={false}
+        />
+      </mesh>
+
+      <group ref={group}>
+        <SereneMotes
+          glowTexture={glowTexture}
+          introPhase={introPhase}
+          reducedMotion={reducedMotion}
+          assemblyClockRef={assemblyClockRef}
+        />
+        <group ref={dragGroup} {...interactiveDrag}>
+          <group ref={tilt}>
+            {/* Invisible sphere hit proxy so grab cursor only activates over the globe */}
+            <mesh
+              onPointerOver={() => {
+                if (!interactive) return;
+                sphereHovered.current = true;
+                document.body.style.cursor = "grab";
+              }}
+              onPointerOut={() => {
+                sphereHovered.current = false;
+                document.body.style.cursor = "";
+              }}
+              onPointerDown={() => {
+                if (!interactive) return;
+                document.body.style.cursor = "grabbing";
+              }}
+              onPointerUp={() => {
+                if (!interactive) return;
+                document.body.style.cursor = sphereHovered.current ? "grab" : "";
+              }}
+            >
+              <sphereGeometry args={[2.65, 16, 16]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+
+            {orbitCards.map((card, index) => (
+              <Card
+                key={card.photoIndex}
+                project={card.project}
+                index={card.photoIndex}
+                position={points[index]}
+                animation={card.animation}
+                introPhase={introPhase}
+                reducedMotion={reducedMotion}
+                assemblyClockRef={assemblyClockRef}
+                sharedGeometry={sharedGeometry}
+                sharedBackTexture={sharedBackTexture}
+              />
+            ))}
+          </group>
         </group>
       </group>
     </group>
   );
 }
 
-export default function ProjectSphereCanvas() {
+export default function ProjectSphereCanvas({
+  heroRef,
+  globeSlotRef,
+}: {
+  heroRef?: React.RefObject<HTMLElement | null>;
+  globeSlotRef?: React.RefObject<HTMLDivElement | null>;
+}) {
   const { phase, reducedMotion, markGlobeReady } = useIntroSequence();
 
   useEffect(() => {
@@ -621,24 +983,30 @@ export default function ProjectSphereCanvas() {
   }, [markGlobeReady]);
 
   const isWaiting = phase === "waiting-consent";
+  const interactive = phase === "hero-text" || phase === "nav-open" || phase === "complete";
 
   return (
     <div
       className={styles.wrap}
       aria-label="Interactive project globe"
       style={{
-        pointerEvents: isWaiting || phase === "globe-assembling" ? "none" : "auto",
+        pointerEvents: interactive ? "auto" : "none",
       }}
     >
       <Canvas
         className={styles.canvas}
         frameloop={isWaiting ? "demand" : "always"}
-        camera={{ position: [0, 0, 10], fov: 52 }}
+        camera={{ position: [0, 0, 11.5], fov: 48 }}
         dpr={[1, 1.5]}
-        gl={{ alpha: true, antialias: true }}
+        gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
       >
         <ambientLight intensity={1} />
-        <Globe introPhase={phase} reducedMotion={reducedMotion} />
+        <Globe
+          introPhase={phase}
+          reducedMotion={reducedMotion}
+          heroRef={heroRef}
+          globeSlotRef={globeSlotRef}
+        />
       </Canvas>
     </div>
   );

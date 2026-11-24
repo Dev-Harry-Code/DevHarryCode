@@ -40,8 +40,8 @@ export function useIntroSequence() {
   return useContext(IntroSequenceContext);
 }
 
-const ASSEMBLY_DURATION_MS = 1850;
-const DOCK_TO_HERO_TEXT_MS = 620;
+const ASSEMBLY_DURATION_MS = 2150;
+const DOCK_TO_HERO_TEXT_MS = 1020;
 const HERO_TEXT_TO_NAV_MS = 580;
 const NAV_TO_COMPLETE_MS = 820;
 const GLOBE_READY_FALLBACK_MS = 1500;
