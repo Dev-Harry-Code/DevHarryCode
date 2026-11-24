@@ -1,15 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import DotMeshBackground from "@/components/DotMeshBackground";
 import HeroKeywordPreview, { type HeroKeyword } from "@/components/HeroKeywordPreview";
+import { useIntroSequence } from "@/components/IntroSequenceProvider";
 import type { FocusEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
 const ProjectSphereCanvas = dynamic(() => import("@/components/ProjectSphereCanvas"), { ssr: false });
 
 interface PreviewState { keyword: HeroKeyword; x: number; y: number; }
+interface CenterOffset { x: number; y: number; bigScale: number; }
 const EMAIL = "dev.harshalsharma@gmail.com";
 
 function clampPreview(value: number, max: number, size: number) {
@@ -17,13 +19,42 @@ function clampPreview(value: number, max: number, size: number) {
 }
 
 export default function HeroSection() {
-  const reducedMotion = useReducedMotion();
+  const framerReducedMotion = useReducedMotion();
+  const { phase, reducedMotion: contextReducedMotion } = useIntroSequence();
+  const reducedMotion = Boolean(framerReducedMotion || contextReducedMotion);
+
   const { scrollY } = useScroll();
   const heroRef = useRef<HTMLElement>(null);
+  const globeSlotRef = useRef<HTMLDivElement>(null);
   const translateY = useTransform(scrollY, [0, 900], [0, -180]);
   const opacity = useTransform(scrollY, [0, 650], [1, 0]);
   const scale = useTransform(scrollY, [0, 900], [1, 0.96]);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [centerOffset, setCenterOffset] = useState<CenterOffset | null>(null);
+
+  useEffect(() => {
+    const slot = globeSlotRef.current;
+    if (!slot) return;
+
+    const measure = () => {
+      const rect = slot.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const x = window.innerWidth / 2 - (rect.left + rect.width / 2);
+      const y = window.innerHeight / 2 - (rect.top + rect.height / 2);
+      const fitHeightScale = (window.innerHeight * 0.84) / rect.height;
+      const fitWidthScale = (window.innerWidth * 0.86) / rect.width;
+      const bigScale = Math.min(1.26, Math.max(1.08, Math.min(fitHeightScale, fitWidthScale)));
+      setCenterOffset({ x, y, bigScale });
+    };
+
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(slot);
+    window.addEventListener("resize", measure, { passive: true });
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
 
   const positionPreview = (clientX: number, clientY: number, keyword: HeroKeyword) => {
     const width = window.innerWidth; const height = window.innerHeight;
@@ -47,25 +78,100 @@ export default function HeroSection() {
     onBlur: () => setPreview(null),
     onPointerLeave: (event: ReactPointerEvent<HTMLSpanElement>) => { if (event.pointerType !== "touch") setPreview(null); },
   });
-  const enter = reducedMotion ? { opacity: 1, x: 0, y: 0, scale: 1 } : undefined;
+
+  const stageRevealed = phase !== "waiting-consent";
+  const heroTextVisible = reducedMotion
+    ? stageRevealed
+    : phase === "hero-text" || phase === "nav-open" || phase === "complete";
+
+  const hiddenTextState = { opacity: 0, x: -18, y: 12, filter: "blur(16px)" };
+  const visibleTextState = { opacity: 1, x: 0, y: 0, filter: "blur(0px)" };
+
+  const globeAnimate = (() => {
+    if (reducedMotion) {
+      return {
+        opacity: stageRevealed ? 1 : 0,
+        x: 0,
+        y: 0,
+        scale: 1,
+        filter: "blur(0px)",
+      };
+    }
+    if (phase === "waiting-consent" || !centerOffset) {
+      return {
+        opacity: 0,
+        x: centerOffset?.x ?? 0,
+        y: centerOffset?.y ?? 0,
+        scale: 0.72,
+        filter: "blur(24px)",
+      };
+    }
+    if (phase === "globe-assembling") {
+      return {
+        opacity: 1,
+        x: centerOffset.x,
+        y: centerOffset.y,
+        scale: centerOffset.bigScale,
+        filter: "blur(0px)",
+      };
+    }
+    return {
+      opacity: 1,
+      x: 0,
+      y: 0,
+      scale: 1,
+      filter: "blur(0px)",
+    };
+  })();
+
+  const globeTransition = reducedMotion
+    ? { duration: 0.25 }
+    : phase === "waiting-consent"
+      ? { duration: 0 }
+      : phase === "globe-assembling"
+        ? { duration: 0.85, ease: [0.16, 1, 0.3, 1] as const }
+        : { duration: 0.75, ease: [0.22, 1, 0.36, 1] as const };
 
   return (
     <section ref={heroRef} className="relative isolate z-10 flex min-h-[min(900px,100svh)] items-center overflow-hidden px-6 py-28 sm:px-10 md:min-h-screen md:px-14 lg:px-20">
-      <DotMeshBackground className="opacity-90" dotSpacing={34} interactionRadius={210} accentColor="75, 146, 255" />
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_24%_48%,rgba(25,55,125,0.22),transparent_44%),linear-gradient(180deg,rgba(3,6,18,0.12),rgba(3,5,14,0.68))]" />
+      <motion.div
+        initial={false}
+        animate={{ opacity: stageRevealed ? 1 : 0 }}
+        transition={{ duration: 0.7, ease: "easeOut" }}
+        className="pointer-events-none absolute inset-0"
+      >
+        <DotMeshBackground className="opacity-90" dotSpacing={34} interactionRadius={210} accentColor="75, 146, 255" />
+        <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_24%_48%,rgba(25,55,125,0.22),transparent_44%),linear-gradient(180deg,rgba(3,6,18,0.12),rgba(3,5,14,0.68))]" />
+      </motion.div>
       <motion.div className="relative z-10 mx-auto grid w-full max-w-[1760px] items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] lg:gap-12 xl:grid-cols-[minmax(0,1fr)_760px] xl:gap-0" style={reducedMotion ? undefined : { y: translateY, opacity, scale }}>
-        <div className="max-w-3xl text-left lg:max-w-[72rem]">
-          <motion.div initial={reducedMotion ? enter : { opacity: 0, y: 18 }} animate={enter ?? { opacity: 1, y: 0 }} transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}>
+        <div
+          className="relative z-10 max-w-3xl text-left lg:max-w-[72rem]"
+          style={{ pointerEvents: heroTextVisible ? "auto" : "none" }}
+        >
+          <motion.div
+            initial={false}
+            animate={heroTextVisible ? visibleTextState : reducedMotion ? { opacity: stageRevealed ? 1 : 0, x: 0, y: 0, filter: "blur(0px)" } : hiddenTextState}
+            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          >
             <span className="inline-flex rounded-full border border-white/20 bg-white/[0.08] px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-white/70 backdrop-blur-md sm:px-5 sm:py-2 sm:text-xs">Polyglot Programmer <span className="mx-2 text-cyan-200/60">•</span> Full Stack <span className="mx-2 text-violet-200/60">•</span> Creative Engineering</span>
           </motion.div>
-          <motion.h1 initial={reducedMotion ? enter : { opacity: 0, y: 24 }} animate={enter ?? { opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.12, ease: [0.16, 1, 0.3, 1] }} className="mt-7 max-w-none overflow-visible text-[clamp(2.7rem,5.5vw,6.8rem)] font-extrabold leading-[0.94] tracking-[-0.055em] sm:mt-9">
+          <motion.h1
+            initial={false}
+            animate={heroTextVisible ? visibleTextState : reducedMotion ? { opacity: stageRevealed ? 1 : 0, x: 0, y: 0, filter: "blur(0px)" } : hiddenTextState}
+            transition={{ duration: 0.65, delay: heroTextVisible && !reducedMotion ? 0.1 : 0, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-7 max-w-none overflow-visible text-[clamp(2.7rem,5.5vw,6.8rem)] font-extrabold leading-[0.94] tracking-[-0.055em] sm:mt-9"
+          >
             <span className="block font-sans font-semibold tracking-[-0.07em] text-white/90 lg:whitespace-nowrap">Hi! I&apos;m Harshal.</span>
             <span className="mt-3 block max-w-full overflow-visible bg-linear-to-r from-cyan-100 via-white/90 to-violet-200 bg-clip-text pb-2 font-serif text-[1.05em] font-normal italic leading-[1.08] tracking-[-0.055em] text-transparent [filter:drop-shadow(0_4px_16px_rgba(255,255,255,0.12))] sm:mt-4 lg:whitespace-nowrap lg:text-[0.84em]">
               <span className="hero-keyword inline-block cursor-pointer px-1 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("MaTriX")}>MaTriX</span>{" "}
               <span className="hero-keyword inline-block cursor-pointer px-1 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("programmer")}>programmer</span>
             </span>
           </motion.h1>
-          <motion.div initial={reducedMotion ? enter : { opacity: 0, y: 18 }} animate={enter ?? { opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.27, ease: [0.16, 1, 0.3, 1] }}>
+          <motion.div
+            initial={false}
+            animate={heroTextVisible ? visibleTextState : reducedMotion ? { opacity: stageRevealed ? 1 : 0, x: 0, y: 0, filter: "blur(0px)" } : hiddenTextState}
+            transition={{ duration: 0.6, delay: heroTextVisible && !reducedMotion ? 0.2 : 0, ease: [0.16, 1, 0.3, 1] }}
+          >
             <p className="mt-7 max-w-xl text-base leading-7 text-white/65 sm:mt-8 sm:text-lg sm:leading-8">Modern interfaces powered by code, immersive visuals and elegant engineering.</p>
             <div className="mt-8 flex flex-wrap items-center gap-3 sm:mt-9">
               <a href="#projects" className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_40px_rgba(100,180,255,0.22)] transition hover:-translate-y-0.5 hover:bg-cyan-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">View Projects</a>
@@ -73,9 +179,17 @@ export default function HeroSection() {
             </div>
           </motion.div>
         </div>
-        <motion.div initial={reducedMotion ? enter : { opacity: 0, y: 28, scale: 0.94 }} animate={enter ?? { opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.72, delay: 0.38, ease: [0.16, 1, 0.3, 1] }} className="flex w-full justify-center lg:justify-center">
-          <ProjectSphereCanvas />
-        </motion.div>
+        <div ref={globeSlotRef} className="relative z-20 flex w-full justify-center lg:justify-center">
+          <motion.div
+            initial={false}
+            animate={globeAnimate}
+            transition={globeTransition}
+            className="w-full"
+            style={{ willChange: "transform, opacity, filter" }}
+          >
+            <ProjectSphereCanvas />
+          </motion.div>
+        </div>
       </motion.div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-32 bg-linear-to-t from-black/75 to-transparent" />
       {preview && <HeroKeywordPreview {...preview} />}

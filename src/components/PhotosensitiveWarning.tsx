@@ -14,6 +14,15 @@ export default function PhotosensitiveWarning() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!showWarning) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showWarning]);
+
   const dismissWarning = () => {
     localStorage.setItem("photosensitive-warning", "true");
     window.dispatchEvent(new Event("portfolio:media-consent"));

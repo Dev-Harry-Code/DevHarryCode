@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useInertiaDrag } from "@/components/useInertiaDrag";
+import { useIntroSequence, type IntroPhase } from "@/components/IntroSequenceProvider";
 import styles from "./ProjectSphereCanvas.module.css";
 
 type Palette = [string, string, string];
@@ -67,6 +68,24 @@ const pexelsPhotoIds = [
 const photoUrls = pexelsPhotoIds.map(
   (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=900`,
 );
+
+function makeSeededRandom(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+function easeOutCubic(t: number) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function easeOutBackMild(t: number) {
+  const c1 = 0.85;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
 
 function makeArtwork(project: Project, index: number): Artwork {
   const canvas = document.createElement("canvas");
@@ -254,16 +273,38 @@ function makeArtwork(project: Project, index: number): Artwork {
   return { texture, backTexture };
 }
 
+type CardAnimation = {
+  delay: number;
+  flightDuration: number;
+  swirlTurns: number;
+  swirlAxis: [number, number, number];
+  spinAngles: [number, number, number];
+};
+
 type CardProps = {
   project: Project;
   position: [number, number, number];
   index: number;
+  animation: CardAnimation;
+  introPhase: IntroPhase;
+  reducedMotion: boolean;
+  assemblyClockRef: React.MutableRefObject<number>;
 };
 
-function Card({ project, position, index }: CardProps) {
+function Card({
+  project,
+  position,
+  index,
+  animation,
+  introPhase,
+  reducedMotion,
+  assemblyClockRef,
+}: CardProps) {
+  const outerRef = useRef<THREE.Group | null>(null);
   const cardRef = useRef<THREE.Group | null>(null);
   const hovered = useRef(false);
   const artwork = useMemo(() => makeArtwork(project, index), [project, index]);
+
   const quaternion = useMemo(() => {
     const normal = new THREE.Vector3(...position).normalize();
     const up = new THREE.Vector3(0, 1, 0);
@@ -273,20 +314,100 @@ function Card({ project, position, index }: CardProps) {
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, normal));
   }, [position]);
 
+  const scratch = useMemo(
+    () => ({
+      targetVec: new THREE.Vector3(...position),
+      pos: new THREE.Vector3(),
+      axis: new THREE.Vector3(...animation.swirlAxis).normalize(),
+      spinEuler: new THREE.Euler(),
+      spinQuat: new THREE.Quaternion(),
+      scaleVec: new THREE.Vector3(1, 1, 1),
+    }),
+    [position, animation.swirlAxis],
+  );
+
   useEffect(() => () => {
     artwork.texture.dispose();
     artwork.backTexture.dispose();
   }, [artwork]);
 
   useFrame((_, delta) => {
-    if (!cardRef.current) return;
+    const outer = outerRef.current;
+    const inner = cardRef.current;
+    if (!outer || !inner) return;
+
+    if (reducedMotion || introPhase === "complete") {
+      outer.visible = true;
+      outer.position.copy(scratch.targetVec);
+      outer.quaternion.copy(quaternion);
+      outer.scale.setScalar(1);
+    } else if (introPhase === "waiting-consent") {
+      outer.visible = false;
+      outer.position.set(0, 0, 0);
+      outer.scale.setScalar(0.001);
+      return;
+    } else {
+      const elapsed = assemblyClockRef.current;
+      const rawT = (elapsed - animation.delay) / animation.flightDuration;
+
+      if (rawT <= 0) {
+        outer.visible = false;
+        outer.position.set(0, 0, 0);
+        outer.scale.setScalar(0.001);
+        return;
+      }
+
+      outer.visible = true;
+
+      if (rawT < 1) {
+        const radial = easeOutBackMild(rawT);
+        const orbitAngle = animation.swirlTurns * Math.pow(1 - rawT, 1.85);
+        scratch.pos
+          .copy(scratch.targetVec)
+          .multiplyScalar(radial)
+          .applyAxisAngle(scratch.axis, orbitAngle);
+        outer.position.copy(scratch.pos);
+
+        const spinDecay = Math.pow(1 - easeOutCubic(rawT), 1.4);
+        scratch.spinEuler.set(
+          animation.spinAngles[0] * spinDecay,
+          animation.spinAngles[1] * spinDecay,
+          animation.spinAngles[2] * spinDecay,
+        );
+        scratch.spinQuat.setFromEuler(scratch.spinEuler);
+        outer.quaternion.copy(quaternion).multiply(scratch.spinQuat);
+
+        const grow = easeOutCubic(Math.min(rawT * 1.45, 1));
+        const lockPulse = rawT >= 0.86 ? Math.sin(((rawT - 0.86) / 0.14) * Math.PI) * 0.08 : 0;
+        outer.scale.setScalar((0.12 + 0.88 * grow) * (1 + lockPulse));
+      } else {
+        outer.position.copy(scratch.targetVec);
+        outer.quaternion.copy(quaternion);
+        const postElapsed = elapsed - animation.delay - animation.flightDuration;
+        if (postElapsed < 0.16) {
+          const p = postElapsed / 0.16;
+          outer.scale.setScalar(1 + Math.sin(p * Math.PI) * 0.04 * (1 - p));
+        } else {
+          outer.scale.setScalar(1);
+        }
+      }
+    }
+
     const easing = 1 - Math.exp(-delta * 12);
-    const targetScale = hovered.current ? 1.09 : 1;
-    cardRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, 1), easing);
-    cardRef.current.position.z = THREE.MathUtils.damp(cardRef.current.position.z, hovered.current ? 0.055 : 0, 12, delta);
+    const interactive = introPhase !== "waiting-consent" && introPhase !== "globe-assembling";
+    const targetScale = interactive && hovered.current ? 1.09 : 1;
+    scratch.scaleVec.set(targetScale, targetScale, 1);
+    inner.scale.lerp(scratch.scaleVec, easing);
+    inner.position.z = THREE.MathUtils.damp(
+      inner.position.z,
+      interactive && hovered.current ? 0.055 : 0,
+      12,
+      delta,
+    );
   });
 
   const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
+    if (introPhase === "waiting-consent" || introPhase === "globe-assembling") return;
     event.stopPropagation();
     hovered.current = true;
     document.body.style.cursor = "pointer";
@@ -297,7 +418,7 @@ function Card({ project, position, index }: CardProps) {
   };
 
   return (
-    <group position={position} quaternion={quaternion}>
+    <group ref={outerRef} position={position} quaternion={quaternion}>
       <group ref={cardRef}>
         <mesh onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
           <planeGeometry args={[1.04, 0.68]} />
@@ -312,13 +433,25 @@ function Card({ project, position, index }: CardProps) {
   );
 }
 
-function Globe() {
+const TOTAL_ASSEMBLY_TIME = 1.82;
+
+function Globe({
+  introPhase,
+  reducedMotion,
+}: {
+  introPhase: IntroPhase;
+  reducedMotion: boolean;
+}) {
   const group = useRef<THREE.Group | null>(null);
   const dragGroup = useRef<THREE.Group | null>(null);
   const tilt = useRef<THREE.Group | null>(null);
   const pointer = useRef({ x: 0, y: 0 });
+  const assemblyClockRef = useRef(0);
   const drag = useInertiaDrag(dragGroup);
   const { gl } = useThree();
+
+  // Generate a fresh random seed on each mount so cards rearrange on every reload
+  const [shuffleSeed] = useState(() => Math.floor(Math.random() * 0xffffffff));
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -340,18 +473,49 @@ function Globe() {
   }, [gl]);
 
   const orbitCards = useMemo(() => {
+    const rand = makeSeededRandom(shuffleSeed);
     const order = Array.from({ length: photoUrls.length }, (_, index) => index);
-    let seed = 78321;
-    const random = () => {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      return seed / 4294967296;
-    };
     for (let index = order.length - 1; index > 0; index -= 1) {
-      const swapIndex = Math.floor(random() * (index + 1));
+      const swapIndex = Math.floor(rand() * (index + 1));
       [order[index], order[swapIndex]] = [order[swapIndex], order[index]];
     }
-    return order.map((photoIndex, index) => ({ project: projects[index % projects.length], photoIndex }));
-  }, []);
+
+    const launchOrder = Array.from({ length: photoUrls.length }, (_, index) => index);
+    for (let index = launchOrder.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(rand() * (index + 1));
+      [launchOrder[index], launchOrder[swapIndex]] = [launchOrder[swapIndex], launchOrder[index]];
+    }
+
+    return order.map((photoIndex, index) => {
+      const rank = launchOrder[index];
+      const pairGroup = Math.floor(rank / 2);
+      const delay = pairGroup * 0.042 + (rank % 2) * 0.016;
+      const swirlSign = rank % 2 === 0 ? 1 : -1;
+      const swirlTurns = swirlSign * (1.25 + rand() * 1.1) * Math.PI;
+      const swirlAxis: [number, number, number] = [
+        (rand() - 0.5) * 0.65,
+        1,
+        (rand() - 0.5) * 0.65,
+      ];
+      const spinAngles: [number, number, number] = [
+        (rand() - 0.5) * 3.6 * Math.PI,
+        (rand() - 0.5) * 4.2 * Math.PI,
+        (rand() - 0.5) * 2.4 * Math.PI,
+      ];
+
+      return {
+        project: projects[index % projects.length],
+        photoIndex,
+        animation: {
+          delay,
+          flightDuration: 0.6,
+          swirlTurns,
+          swirlAxis,
+          spinAngles,
+        } satisfies CardAnimation,
+      };
+    });
+  }, [shuffleSeed]);
 
   const points = useMemo<[number, number, number][]>(() => {
     const rows = [4, 7, 10, 12, 10, 7, 4];
@@ -371,23 +535,78 @@ function Globe() {
   }, []);
 
   useFrame((_, delta) => {
+    if (introPhase === "waiting-consent") {
+      assemblyClockRef.current = 0;
+      if (group.current) {
+        group.current.scale.setScalar(1.62);
+      }
+      return;
+    }
+
+    if (introPhase === "complete" || reducedMotion) {
+      assemblyClockRef.current = TOTAL_ASSEMBLY_TIME + 1;
+    } else {
+      assemblyClockRef.current += Math.min(delta, 0.05);
+    }
+
     if (group.current) {
-      group.current.rotation.y += delta * 0.1;
-      const targetScale = 1.5;
-      const scale = THREE.MathUtils.damp(group.current.scale.x, targetScale, 4, delta);
+      const assemblyProgress = THREE.MathUtils.clamp(
+        assemblyClockRef.current / TOTAL_ASSEMBLY_TIME,
+        0,
+        1,
+      );
+
+      if (introPhase === "globe-assembling" && !reducedMotion) {
+        // Energetic introductory revolution that settles cleanly as cards lock into position
+        const spinSpeed = 0.1 + 1.15 * Math.pow(1 - assemblyProgress, 2.2);
+        group.current.rotation.y += delta * spinSpeed;
+        group.current.rotation.x = Math.sin(assemblyProgress * Math.PI) * 0.15 * (1 - assemblyProgress);
+      } else {
+        group.current.rotation.y += delta * 0.1;
+        group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, 0, 5, delta);
+      }
+
+      const targetScale = introPhase === "globe-assembling" && !reducedMotion ? 1.62 : 1.5;
+      const scale = THREE.MathUtils.damp(group.current.scale.x, targetScale, 4.5, delta);
       group.current.scale.setScalar(scale);
     }
+
     if (tilt.current) {
-      tilt.current.rotation.x = THREE.MathUtils.damp(tilt.current.rotation.x, -pointer.current.y * 0.08, 3, delta);
-      tilt.current.rotation.y = THREE.MathUtils.damp(tilt.current.rotation.y, pointer.current.x * 0.08, 3, delta);
+      const interactive = introPhase !== "globe-assembling";
+      tilt.current.rotation.x = THREE.MathUtils.damp(
+        tilt.current.rotation.x,
+        interactive ? -pointer.current.y * 0.08 : 0,
+        3,
+        delta,
+      );
+      tilt.current.rotation.y = THREE.MathUtils.damp(
+        tilt.current.rotation.y,
+        interactive ? pointer.current.x * 0.08 : 0,
+        3,
+        delta,
+      );
     }
   });
 
+  const interactiveDrag =
+    introPhase !== "waiting-consent" && introPhase !== "globe-assembling" ? drag : {};
+
   return (
     <group ref={group}>
-      <group ref={dragGroup} {...drag}>
+      <group ref={dragGroup} {...interactiveDrag}>
         <group ref={tilt}>
-          {orbitCards.map((card, index) => <Card key={card.photoIndex} project={card.project} index={card.photoIndex} position={points[index]} />)}
+          {orbitCards.map((card, index) => (
+            <Card
+              key={card.photoIndex}
+              project={card.project}
+              index={card.photoIndex}
+              position={points[index]}
+              animation={card.animation}
+              introPhase={introPhase}
+              reducedMotion={reducedMotion}
+              assemblyClockRef={assemblyClockRef}
+            />
+          ))}
         </group>
       </group>
     </group>
@@ -395,11 +614,31 @@ function Globe() {
 }
 
 export default function ProjectSphereCanvas() {
+  const { phase, reducedMotion, markGlobeReady } = useIntroSequence();
+
+  useEffect(() => {
+    markGlobeReady();
+  }, [markGlobeReady]);
+
+  const isWaiting = phase === "waiting-consent";
+
   return (
-    <div className={styles.wrap} aria-label="Interactive project globe">
-      <Canvas className={styles.canvas} camera={{ position: [0, 0, 10], fov: 52 }} dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
+    <div
+      className={styles.wrap}
+      aria-label="Interactive project globe"
+      style={{
+        pointerEvents: isWaiting || phase === "globe-assembling" ? "none" : "auto",
+      }}
+    >
+      <Canvas
+        className={styles.canvas}
+        frameloop={isWaiting ? "demand" : "always"}
+        camera={{ position: [0, 0, 10], fov: 52 }}
+        dpr={[1, 1.5]}
+        gl={{ alpha: true, antialias: true }}
+      >
         <ambientLight intensity={1} />
-        <Globe />
+        <Globe introPhase={phase} reducedMotion={reducedMotion} />
       </Canvas>
     </div>
   );

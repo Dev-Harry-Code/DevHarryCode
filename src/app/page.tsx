@@ -6,6 +6,7 @@ import PhotosensitiveWarning from "@/components/PhotosensitiveWarning";
 import AboutSection from "@/components/AboutSection";
 import Footer from "@/components/Footer";
 import StackSection from "@/components/StackSection";
+import { IntroSequenceProvider } from "@/components/IntroSequenceProvider";
 
 const ProjectSection = dynamic(
   () => import("@/components/ProjectSection"),
@@ -14,15 +15,17 @@ const ProjectSection = dynamic(
 
 export default function Home() {
   return (
-    <div className="relative min-h-screen bg-black text-white">
-      <Navbar />
-      <VideoBackground />
-      <HeroSection />
-      <AboutSection />
-      <ProjectSection />
-      <StackSection />
-      <Footer />
-      <PhotosensitiveWarning />
-    </div>
+    <IntroSequenceProvider>
+      <div className="relative min-h-screen bg-black text-white">
+        <Navbar />
+        <VideoBackground />
+        <HeroSection />
+        <AboutSection />
+        <ProjectSection />
+        <StackSection />
+        <Footer />
+        <PhotosensitiveWarning />
+      </div>
+    </IntroSequenceProvider>
   );
 }

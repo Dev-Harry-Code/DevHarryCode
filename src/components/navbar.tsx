@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { motion, useMotionValueEvent, useScroll } from "framer-motion";
+import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
 import {
   ArrowUpRight,
   User,
@@ -10,6 +10,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import LiquidGlass from "@/components/LiquidGlass/LiquidGlass";
+import { useIntroSequence } from "@/components/IntroSequenceProvider";
 
 const navItems = [
   {
@@ -26,15 +27,51 @@ const navItems = [
 
 export default function Navbar() {
   const { scrollY } = useScroll();
+  const framerReducedMotion = useReducedMotion();
+  const { phase, reducedMotion: contextReducedMotion } = useIntroSequence();
+  const reducedMotion = Boolean(framerReducedMotion || contextReducedMotion);
 
   const [floating, setFloating] = useState(false);
   const [active, setActive] = useState("#about");
+  const [navStage, setNavStage] = useState<"hidden" | "bubble" | "settled">("hidden");
+  const [contentVisible, setContentVisible] = useState(false);
+
+  const navOpen = reducedMotion
+    ? phase !== "waiting-consent"
+    : phase === "nav-open" || phase === "complete";
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const next = latest > 60;
     setFloating((prev) => (prev === next ? prev : next));
   });
 
+  useEffect(() => {
+    if (!navOpen) return;
+
+    if (reducedMotion || phase === "complete") {
+      const immediate = window.setTimeout(() => {
+        setNavStage("settled");
+        setContentVisible(true);
+      }, 0);
+      return () => window.clearTimeout(immediate);
+    }
+
+    const tBubble = window.setTimeout(() => {
+      setNavStage("bubble");
+    }, 10);
+    const tContent = window.setTimeout(() => {
+      setContentVisible(true);
+    }, 170);
+    const tSettle = window.setTimeout(() => {
+      setNavStage("settled");
+    }, 560);
+
+    return () => {
+      window.clearTimeout(tBubble);
+      window.clearTimeout(tContent);
+      window.clearTimeout(tSettle);
+    };
+  }, [navOpen, phase, reducedMotion]);
 
   useEffect(() => {
     const syncHash = () => {
@@ -50,7 +87,6 @@ export default function Navbar() {
       .map((item) => document.querySelector(item.href))
       .filter(Boolean);
 
-
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -65,11 +101,9 @@ export default function Navbar() {
       }
     );
 
-
     sections.forEach((section) => {
       if (section) observer.observe(section);
     });
-
 
     return () => {
       observer.disconnect();
@@ -77,6 +111,59 @@ export default function Navbar() {
     };
   }, []);
 
+  const showBubbleGlass = navStage === "bubble" || floating;
+  const effectiveStage = reducedMotion && navOpen ? "settled" : navStage;
+
+  const desktopAnimate = (() => {
+    if (effectiveStage === "hidden") {
+      return {
+        width: 140,
+        marginTop: 14,
+        height: 44,
+        borderRadius: 9999,
+        y: -36,
+        scaleY: 0.52,
+        opacity: 0,
+        filter: "blur(10px)",
+      };
+    }
+    if (effectiveStage === "bubble") {
+      return {
+        width: 860,
+        marginTop: 14,
+        height: 60,
+        borderRadius: 9999,
+        y: [-32, 5, 0],
+        scaleY: [0.55, 1.09, 0.98, 1],
+        opacity: 1,
+        filter: "blur(0px)",
+      };
+    }
+    return {
+      width: floating ? 860 : "100%",
+      marginTop: floating ? 14 : 0,
+      height: floating ? 60 : 76,
+      borderRadius: floating ? 9999 : 0,
+      y: 0,
+      scaleY: 1,
+      opacity: 1,
+      filter: "blur(0px)",
+    };
+  })();
+
+  const desktopTransition = reducedMotion
+    ? { duration: 0.2 }
+    : effectiveStage === "bubble"
+      ? {
+          duration: 0.52,
+          ease: [0.16, 1, 0.3, 1] as const,
+          y: { duration: 0.52, times: [0, 0.6, 1], ease: [0.16, 1, 0.3, 1] as const },
+          scaleY: { duration: 0.52, times: [0, 0.45, 0.78, 1], ease: [0.16, 1, 0.3, 1] as const },
+        }
+      : {
+          duration: 0.34,
+          ease: [0.16, 1, 0.3, 1] as const,
+        };
 
   return (
     <>
@@ -86,25 +173,20 @@ export default function Navbar() {
 
         <motion.div
           initial={false}
-          animate={{
-            width: floating ? 860 : "100%",
-            marginTop: floating ? 14 : 0,
-            height: floating ? 60 : 76,
-            borderRadius: floating ? 9999 : 0,
-          }}
-          transition={{
-            duration: 0.3,
-            ease: [0.16, 1, 0.3, 1],
-          }}
-          className="w-full max-w-300 pointer-events-auto"
+          animate={desktopAnimate}
+          transition={desktopTransition}
+          className={cn(
+            "w-full max-w-300 origin-top",
+            navOpen ? "pointer-events-auto" : "pointer-events-none"
+          )}
         >
 
           <LiquidGlass
-            enabled={floating}
+            enabled={showBubbleGlass}
             blurAmount="16px"
             className={cn(
               "w-full h-full px-6 md:px-8",
-              floating
+              showBubbleGlass
                 ? "liquid-glass bg-white/20 dark:bg-black/40 rounded-full"
                 : "bg-transparent border-transparent shadow-none"
             )}
@@ -114,13 +196,10 @@ export default function Navbar() {
 
             <Link
               href="#"
-              className="
-              text-lg md:text-xl 
-              font-bold 
-              tracking-tight 
-              text-white
-              dark:text-white
-              "
+              className={cn(
+                "text-lg md:text-xl font-bold tracking-tight text-white dark:text-white transition-all duration-300",
+                contentVisible || reducedMotion ? "opacity-100 blur-0" : "opacity-0 blur-[6px]"
+              )}
             >
               DevHarryCode
               <span className="text-blue-500">
@@ -131,7 +210,12 @@ export default function Navbar() {
 
             {/* Desktop Links */}
 
-            <nav className="hidden md:flex items-center gap-1">
+            <nav
+              className={cn(
+                "hidden md:flex items-center gap-1 transition-all duration-300",
+                contentVisible || reducedMotion ? "opacity-100 blur-0" : "opacity-0 blur-[6px]"
+              )}
+            >
 
               {navItems.map((item) => (
                 
@@ -153,12 +237,10 @@ export default function Navbar() {
 
             <Link
               href="mailto:dev.harshalsharma@gmail.com"
-              className="
-              hidden md:inline-flex
-              liquid-btn
-              items-center
-              gap-1
-              "
+              className={cn(
+                "hidden md:inline-flex liquid-btn items-center gap-1 transition-all duration-300",
+                contentVisible || reducedMotion ? "opacity-100 blur-0" : "opacity-0 blur-[6px]"
+              )}
             >
               Let&apos;s Talk
               <ArrowUpRight size={16} />
@@ -190,20 +272,22 @@ export default function Navbar() {
       >
 
         <motion.div
-          initial={{
-            y: 100,
-            opacity: 0
-          }}
-          animate={{
-            y: 0,
-            opacity: 1
-          }}
-          transition={{
-            type: "spring",
-            stiffness: 260,
-            damping: 25
-          }}
-          className="pointer-events-auto"
+          initial={false}
+          animate={
+            navOpen
+              ? { y: 0, opacity: 1, scale: 1 }
+              : { y: 100, opacity: 0, scale: 0.78 }
+          }
+          transition={
+            reducedMotion
+              ? { duration: 0.2 }
+              : {
+                  type: "spring",
+                  stiffness: 260,
+                  damping: 24,
+                }
+          }
+          className={navOpen ? "pointer-events-auto" : "pointer-events-none"}
         >
 
           <LiquidGlass
