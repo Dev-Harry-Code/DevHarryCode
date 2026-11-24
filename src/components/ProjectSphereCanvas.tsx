@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { motion } from "framer-motion";
 import * as THREE from "three";
 import { useInertiaDrag } from "@/components/useInertiaDrag";
 import { useIntroSequence, type IntroPhase } from "@/components/IntroSequenceProvider";
@@ -107,27 +106,6 @@ function makeSharedBackTexture(): THREE.CanvasTexture {
   backTexture.minFilter = THREE.LinearFilter;
   backTexture.magFilter = THREE.LinearFilter;
   return backTexture;
-}
-
-function makeRadialGlowTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 96;
-  canvas.height = 96;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Unable to create glow texture");
-  const gradient = ctx.createRadialGradient(48, 48, 0, 48, 48, 48);
-  gradient.addColorStop(0, "rgba(180, 222, 255, 0.92)");
-  gradient.addColorStop(0.24, "rgba(110, 175, 255, 0.38)");
-  gradient.addColorStop(0.52, "rgba(130, 130, 255, 0.1)");
-  gradient.addColorStop(0.76, "rgba(0, 0, 0, 0)");
-  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 96, 96);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.generateMipmaps = false;
-  texture.minFilter = THREE.LinearFilter;
-  return texture;
 }
 
 function makeFrontTexture(
@@ -494,83 +472,6 @@ function Card({
   );
 }
 
-function SereneMotes({
-  glowTexture,
-  introPhase,
-  reducedMotion,
-  assemblyClockRef,
-}: {
-  glowTexture: THREE.CanvasTexture;
-  introPhase: IntroPhase;
-  reducedMotion: boolean;
-  assemblyClockRef: React.MutableRefObject<number>;
-}) {
-  const pointsRef = useRef<THREE.Points | null>(null);
-  const matRef = useRef<THREE.PointsMaterial | null>(null);
-
-  const geometry = useMemo(() => {
-    const rand = makeSeededRandom(9421);
-    const count = 36;
-    const positions = new Float32Array(count * 3);
-    for (let i = 0; i < count; i += 1) {
-      const u = rand() * 2 - 1;
-      const theta = rand() * Math.PI * 2;
-      const r = 2.68 + rand() * 0.68;
-      const ring = Math.sqrt(Math.max(0, 1 - u * u));
-      positions[i * 3] = Math.cos(theta) * ring * r;
-      positions[i * 3 + 1] = u * r;
-      positions[i * 3 + 2] = Math.sin(theta) * ring * r;
-    }
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    return geom;
-  }, []);
-
-  useEffect(() => () => geometry.dispose(), [geometry]);
-
-  useFrame((_, delta) => {
-    const pts = pointsRef.current;
-    const mat = matRef.current;
-    if (!pts || !mat) return;
-
-    if (introPhase === "waiting-consent") {
-      pts.visible = false;
-      return;
-    }
-
-    pts.visible = true;
-    pts.rotation.y -= delta * 0.05;
-    pts.rotation.z += delta * 0.015;
-
-    if (reducedMotion || introPhase === "complete") {
-      pts.scale.setScalar(1);
-      mat.opacity = 0.2;
-    } else if (introPhase === "globe-assembling") {
-      const p = THREE.MathUtils.clamp(assemblyClockRef.current / 1.85, 0, 1);
-      pts.scale.setScalar(0.15 + 0.85 * easeOutCubic(p));
-      mat.opacity = 0.4 * Math.sin(Math.min(p, 0.85) * Math.PI) + 0.15 * p;
-    } else {
-      mat.opacity = THREE.MathUtils.damp(mat.opacity, 0.2, 3, delta);
-      pts.scale.setScalar(THREE.MathUtils.damp(pts.scale.x, 1, 4, delta));
-    }
-  });
-
-  return (
-    <points ref={pointsRef} geometry={geometry}>
-      <pointsMaterial
-        ref={matRef}
-        map={glowTexture}
-        size={0.24}
-        transparent
-        opacity={0.2}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-        toneMapped={false}
-      />
-    </points>
-  );
-}
-
 const TOTAL_ASSEMBLY_TIME = 2.05;
 const DOCK_DURATION = 1.02;
 const RESTING_SCALE = 1.66;
@@ -579,18 +480,14 @@ const BIG_SCALE = 2.0;
 function Globe({
   introPhase,
   reducedMotion,
-  travelDirection,
 }: {
   introPhase: IntroPhase;
   reducedMotion: boolean;
-  travelDirection: { dx: number; dy: number };
 }) {
   const motionGroup = useRef<THREE.Group | null>(null);
   const group = useRef<THREE.Group | null>(null);
   const dragGroup = useRef<THREE.Group | null>(null);
   const tilt = useRef<THREE.Group | null>(null);
-  const wakeRef = useRef<THREE.Mesh | null>(null);
-  const wakeMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const sphereHovered = useRef(false);
   const assemblyClockRef = useRef(0);
@@ -610,13 +507,11 @@ function Globe({
 
   const sharedGeometry = useMemo(() => new THREE.PlaneGeometry(1.04, 0.68), []);
   const sharedBackTexture = useMemo(() => makeSharedBackTexture(), []);
-  const glowTexture = useMemo(() => makeRadialGlowTexture(), []);
 
   useEffect(() => () => {
     sharedGeometry.dispose();
     sharedBackTexture.dispose();
-    glowTexture.dispose();
-  }, [sharedGeometry, sharedBackTexture, glowTexture]);
+  }, [sharedGeometry, sharedBackTexture]);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -717,7 +612,6 @@ function Globe({
         motionGroup.current.position.set(0, 0, -3.6);
         motionGroup.current.scale.setScalar(BIG_SCALE * 0.78);
       }
-      if (wakeRef.current) wakeRef.current.visible = false;
       return;
     }
 
@@ -750,27 +644,6 @@ function Globe({
         motionGroup.current.scale.setScalar(
           THREE.MathUtils.lerp(BIG_SCALE, RESTING_SCALE, dockEase),
         );
-      }
-
-      if (wakeRef.current && wakeMatRef.current) {
-        if (!reducedMotion && introPhase === "globe-assembling") {
-          const p = THREE.MathUtils.clamp(assemblyClockRef.current / 1.15, 0, 1);
-          const intensity = Math.sin(p * Math.PI) * 0.34;
-          wakeMatRef.current.opacity = intensity;
-          wakeRef.current.visible = intensity > 0.01;
-          wakeRef.current.scale.set(6.2, 6.2, 1);
-          wakeRef.current.rotation.z = 0;
-        } else if (!reducedMotion && (introPhase === "globe-docking" || dockClockRef.current < DOCK_DURATION)) {
-          const dockT = THREE.MathUtils.clamp(dockClockRef.current / DOCK_DURATION, 0, 1);
-          const velocityBell = 4 * dockT * (1 - dockT); // Peaks mid-glide along ease-in-out
-          const intensity = velocityBell * 0.38;
-          wakeMatRef.current.opacity = intensity;
-          wakeRef.current.visible = intensity > 0.008;
-          wakeRef.current.scale.set(6.4 * (1 + velocityBell * 0.28), 5.8, 1);
-          wakeRef.current.rotation.z = Math.atan2(-travelDirection.dy, travelDirection.dx);
-        } else {
-          wakeRef.current.visible = false;
-        }
       }
     }
 
@@ -813,27 +686,7 @@ function Globe({
 
   return (
     <group ref={motionGroup}>
-      {/* Motion-blur luminous wake during entry & ease-in-out glide */}
-      <mesh ref={wakeRef} position={[0, 0, -0.5]} visible={false}>
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial
-          ref={wakeMatRef}
-          map={glowTexture}
-          transparent
-          opacity={0}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
-        />
-      </mesh>
-
       <group ref={group}>
-        <SereneMotes
-          glowTexture={glowTexture}
-          introPhase={introPhase}
-          reducedMotion={reducedMotion}
-          assemblyClockRef={assemblyClockRef}
-        />
         <group ref={dragGroup} {...interactiveDrag}>
           <group ref={tilt}>
             {/* Invisible sphere hit proxy so grab cursor only activates over the globe */}
@@ -882,11 +735,7 @@ function Globe({
   );
 }
 
-export default function ProjectSphereCanvas({
-  travelDirection = { dx: 1, dy: 0 },
-}: {
-  travelDirection?: { dx: number; dy: number };
-}) {
+export default function ProjectSphereCanvas() {
   const { phase, reducedMotion, markGlobeReady } = useIntroSequence();
 
   useEffect(() => {
@@ -894,7 +743,6 @@ export default function ProjectSphereCanvas({
   }, [markGlobeReady]);
 
   const isWaiting = phase === "waiting-consent";
-  const isMoving = !reducedMotion && (phase === "globe-assembling" || phase === "globe-docking");
   const interactive = phase === "hero-text" || phase === "nav-open" || phase === "complete";
 
   return (
@@ -914,21 +762,8 @@ export default function ProjectSphereCanvas({
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
       >
         <ambientLight intensity={1} />
-        <Globe
-          introPhase={phase}
-          reducedMotion={reducedMotion}
-          travelDirection={travelDirection}
-        />
+        <Globe introPhase={phase} reducedMotion={reducedMotion} />
       </Canvas>
-
-      {/* Non-translucent glowing box overlay on top: invisible at initial/rest, glows while moving */}
-      <motion.div
-        aria-hidden="true"
-        initial={false}
-        animate={{ opacity: isMoving ? 1 : 0 }}
-        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        className="pointer-events-none absolute inset-4 z-10 rounded-3xl border border-cyan-300/35 bg-transparent shadow-[0_0_48px_rgba(96,165,250,0.22),inset_0_0_38px_rgba(125,211,252,0.14)] sm:inset-6"
-      />
     </div>
   );
 }

@@ -169,12 +169,7 @@ export default function HeroSection() {
             transition={globeTransition}
             style={{ willChange: "transform, opacity" }}
           >
-            <ProjectSphereCanvas
-              travelDirection={{
-                dx: -(centerOffset?.x ?? -1),
-                dy: -(centerOffset?.y ?? 0),
-              }}
-            />
+            <ProjectSphereCanvas />
           </motion.div>
         </div>
       </div>
