@@ -6,10 +6,11 @@ import * as THREE from "three";
 
 type DragGroupRef = React.MutableRefObject<THREE.Group | null>;
 
-export function useInertiaDrag(groupRef: DragGroupRef) {
+export function useInertiaDrag(groupRef: DragGroupRef, locked = false) {
   const state = useRef({ down: false, x: 0, y: 0, targetX: 0, targetY: 0 });
 
   const onDown = useCallback((event: ThreeEvent<PointerEvent>) => {
+    if (locked) return;
     const current = state.current;
     current.down = true;
     current.x = event.clientX;
@@ -20,9 +21,10 @@ export function useInertiaDrag(groupRef: DragGroupRef) {
     }
     const target = event.currentTarget as unknown as { setPointerCapture?: (pointerId: number) => void };
     target.setPointerCapture?.(event.pointerId);
-  }, [groupRef]);
+  }, [groupRef, locked]);
 
   const onMove = useCallback((event: ThreeEvent<PointerEvent>) => {
+    if (locked) return;
     const current = state.current;
     if (!current.down) return;
     const deltaX = event.clientX - current.x;
@@ -31,7 +33,7 @@ export function useInertiaDrag(groupRef: DragGroupRef) {
     current.targetX = THREE.MathUtils.clamp(current.targetX + deltaY * 0.0045, -0.65, 0.65);
     current.x = event.clientX;
     current.y = event.clientY;
-  }, []);
+  }, [locked]);
 
   const onUp = useCallback(() => {
     state.current.down = false;
@@ -42,7 +44,12 @@ export function useInertiaDrag(groupRef: DragGroupRef) {
   useFrame((_, delta) => {
     if (!groupRef.current) return;
     const current = state.current;
-    const easing = current.down ? 7.5 : 3.8;
+    if (locked) {
+      current.down = false;
+      current.targetX = 0;
+      current.targetY = 0;
+    }
+    const easing = locked ? 8.5 : current.down ? 7.5 : 3.8;
     groupRef.current.rotation.x = THREE.MathUtils.damp(groupRef.current.rotation.x, current.targetX, easing, delta);
     groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, current.targetY, easing, delta);
   });

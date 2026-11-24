@@ -360,7 +360,7 @@ function Card({
   const quaternion = useMemo(() => {
     const normal = new THREE.Vector3(...position).normalize();
     const up = new THREE.Vector3(0, 1, 0);
-    if (Math.abs(normal.dot(up)) > 0.96) up.set(0, 0, 1);
+    if (Math.abs(normal.dot(up)) > 0.96) up.set(0, 0, normal.y > 0 ? -1 : 1);
     const right = new THREE.Vector3().crossVectors(up, normal).normalize();
     up.crossVectors(normal, right).normalize();
     return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, normal));
@@ -548,7 +548,7 @@ function Globe({
   const assemblyClockRef = useRef(0);
   const dockClockRef = useRef(0);
   const uploadQueueRef = useRef<(() => void)[]>([]);
-  const drag = useInertiaDrag(dragGroup);
+  const drag = useInertiaDrag(dragGroup, Boolean(selectedCard));
   const { gl } = useThree();
 
   const [shuffleSeed] = useState(() => Math.floor(Math.random() * 0xffffffff));
