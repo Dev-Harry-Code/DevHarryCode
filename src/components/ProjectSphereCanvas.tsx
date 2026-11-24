@@ -68,13 +68,12 @@ export const pexelsPhotoIds = [
   28769445, 17622430, 6196079, 5226084, 40695384, 5712837, 15311343, 7741609, 240040, 2599142,
   2858265, 32420917, 6661427, 33931028, 6498997, 17662493,
 ];
-const photoUrls = pexelsPhotoIds.map(
-  (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=400`,
-);
+function getPhotoUrl(index: number, isMobile: boolean) {
+  const id = pexelsPhotoIds[index];
+  return `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=${isMobile ? 300 : 400}`;
+}
 
-const TEX_W = 384;
-const TEX_H = 252;
-const TEX_RADIUS = 34;
+const PHOTO_COUNT = pexelsPhotoIds.length;
 
 function makeSeededRandom(seed: number) {
   let state = seed >>> 0;
@@ -118,27 +117,31 @@ function makeSharedBackTexture(): THREE.CanvasTexture {
 function makeFrontTexture(
   project: GlobeProject,
   index: number,
+  isMobile: boolean,
   enqueueUpload: (task: () => void) => void,
 ): { texture: THREE.CanvasTexture; cancel: () => void } {
+  const texW = isMobile ? 256 : 384;
+  const texH = isMobile ? 168 : 252;
+  const texRadius = isMobile ? 22 : 34;
   const canvas = document.createElement("canvas");
-  canvas.width = TEX_W;
-  canvas.height = TEX_H;
+  canvas.width = texW;
+  canvas.height = texH;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Unable to create the globe artwork canvas");
 
   const colors = globePalettes[project.theme] ?? globePalettes.type;
   context.beginPath();
-  context.roundRect(0, 0, TEX_W, TEX_H, TEX_RADIUS);
+  context.roundRect(0, 0, texW, texH, texRadius);
   context.clip();
 
-  const background = context.createLinearGradient(0, 0, TEX_W, TEX_H);
+  const background = context.createLinearGradient(0, 0, texW, texH);
   background.addColorStop(0, colors[0]);
   background.addColorStop(1, colors[1]);
   context.fillStyle = background;
-  context.fillRect(0, 0, TEX_W, TEX_H);
+  context.fillRect(0, 0, texW, texH);
 
-  const sx = TEX_W / 640;
-  const sy = TEX_H / 420;
+  const sx = texW / 640;
+  const sy = texH / 420;
   context.save();
   context.scale(sx, sy);
 
@@ -285,20 +288,20 @@ function makeFrontTexture(
     if (disposed) return;
     enqueueUpload(() => {
       if (disposed) return;
-      context.clearRect(0, 0, TEX_W, TEX_H);
+      context.clearRect(0, 0, texW, texH);
       context.save();
       context.beginPath();
-      context.roundRect(0, 0, TEX_W, TEX_H, TEX_RADIUS);
+      context.roundRect(0, 0, texW, texH, texRadius);
       context.clip();
-      const scale = Math.max(TEX_W / photo.width, TEX_H / photo.height);
+      const scale = Math.max(texW / photo.width, texH / photo.height);
       const width = photo.width * scale;
       const height = photo.height * scale;
-      context.drawImage(photo, (TEX_W - width) / 2, (TEX_H - height) / 2, width, height);
+      context.drawImage(photo, (texW - width) / 2, (texH - height) / 2, width, height);
       context.restore();
       texture.needsUpdate = true;
     });
   };
-  photo.src = photoUrls[index];
+  photo.src = getPhotoUrl(index, isMobile);
 
   return {
     texture,
@@ -328,6 +331,7 @@ type CardProps = {
   assemblyClockRef: React.MutableRefObject<number>;
   sharedGeometry: THREE.PlaneGeometry;
   sharedBackTexture: THREE.CanvasTexture;
+  isMobile: boolean;
   enqueueUpload: (task: () => void) => void;
   onSelect: (card: SelectedGlobeCard) => void;
 };
@@ -343,6 +347,7 @@ function Card({
   assemblyClockRef,
   sharedGeometry,
   sharedBackTexture,
+  isMobile,
   enqueueUpload,
   onSelect,
 }: CardProps) {
@@ -353,8 +358,8 @@ function Card({
   const hovered = useRef(false);
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
   const frontAsset = useMemo(
-    () => makeFrontTexture(project, index, enqueueUpload),
-    [project, index, enqueueUpload],
+    () => makeFrontTexture(project, index, isMobile, enqueueUpload),
+    [project, index, isMobile, enqueueUpload],
   );
 
   const quaternion = useMemo(() => {
@@ -531,11 +536,13 @@ const BIG_SCALE = 2.0;
 function Globe({
   introPhase,
   reducedMotion,
+  isMobile,
   selectedCard,
   onSelectCard,
 }: {
   introPhase: IntroPhase;
   reducedMotion: boolean;
+  isMobile: boolean;
   selectedCard: SelectedGlobeCard | null;
   onSelectCard: (card: SelectedGlobeCard) => void;
 }) {
@@ -591,13 +598,13 @@ function Globe({
 
   const orbitCards = useMemo(() => {
     const rand = makeSeededRandom(shuffleSeed);
-    const order = Array.from({ length: photoUrls.length }, (_, index) => index);
+    const order = Array.from({ length: PHOTO_COUNT }, (_, index) => index);
     for (let index = order.length - 1; index > 0; index -= 1) {
       const swapIndex = Math.floor(rand() * (index + 1));
       [order[index], order[swapIndex]] = [order[swapIndex], order[index]];
     }
 
-    const launchOrder = Array.from({ length: photoUrls.length }, (_, index) => index);
+    const launchOrder = Array.from({ length: PHOTO_COUNT }, (_, index) => index);
     for (let index = launchOrder.length - 1; index > 0; index -= 1) {
       const swapIndex = Math.floor(rand() * (index + 1));
       [launchOrder[index], launchOrder[swapIndex]] = [launchOrder[swapIndex], launchOrder[index]];
@@ -652,7 +659,8 @@ function Globe({
   }, []);
 
   useFrame((_, delta) => {
-    for (let i = 0; i < 2 && uploadQueueRef.current.length > 0; i += 1) {
+    const uploadBudget = isMobile ? 1 : 2;
+    for (let i = 0; i < uploadBudget && uploadQueueRef.current.length > 0; i += 1) {
       const task = uploadQueueRef.current.shift();
       task?.();
     }
@@ -811,6 +819,7 @@ function Globe({
                 assemblyClockRef={assemblyClockRef}
                 sharedGeometry={sharedGeometry}
                 sharedBackTexture={sharedBackTexture}
+                isMobile={isMobile}
                 enqueueUpload={enqueueUpload}
                 onSelect={onSelectCard}
               />
@@ -830,11 +839,39 @@ export default function ProjectSphereCanvas({
   onSelectCard?: (card: SelectedGlobeCard) => void;
 }) {
   const { phase, reducedMotion, markGlobeReady } = useIntroSequence();
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [settledWhileSelected, setSettledWhileSelected] = useState(false);
+  const [inViewport, setInViewport] = useState(true);
+  const [docVisible, setDocVisible] = useState(true);
+  const [isMobile] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768
+      : false,
+  );
 
   useEffect(() => {
     markGlobeReady();
   }, [markGlobeReady]);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setInViewport(entry?.isIntersecting ?? true),
+      { rootMargin: "180px" },
+    );
+    observer.observe(el);
+
+    const onVisibility = () => {
+      setDocVisible(document.visibilityState === "visible");
+    };
+    onVisibility();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedCard) {
@@ -848,12 +885,18 @@ export default function ProjectSphereCanvas({
   }, [selectedCard, reducedMotion]);
 
   const isWaiting = phase === "waiting-consent";
+  const pauseCanvas =
+    isWaiting ||
+    !inViewport ||
+    !docVisible ||
+    Boolean(selectedCard && settledWhileSelected);
   const interactive =
     !selectedCard &&
     (phase === "hero-text" || phase === "nav-open" || phase === "complete");
 
   return (
     <div
+      ref={wrapRef}
       className={styles.wrap}
       aria-label="Interactive project globe"
       style={{
@@ -862,16 +905,21 @@ export default function ProjectSphereCanvas({
     >
       <Canvas
         className={styles.canvas}
-        frameloop={isWaiting || (selectedCard && settledWhileSelected) ? "demand" : "always"}
+        frameloop={pauseCanvas ? "demand" : "always"}
         resize={{ scroll: false }}
         camera={{ position: [0, 0, 15.4], fov: 48 }}
-        dpr={[1, 1.25]}
-        gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
+        dpr={isMobile ? 1 : [1, 1.25]}
+        gl={{
+          alpha: true,
+          antialias: !isMobile,
+          powerPreference: isMobile ? "low-power" : "high-performance",
+        }}
       >
         <ambientLight intensity={1} />
         <Globe
           introPhase={phase}
           reducedMotion={reducedMotion}
+          isMobile={isMobile}
           selectedCard={selectedCard}
           onSelectCard={(card) => onSelectCard?.(card)}
         />

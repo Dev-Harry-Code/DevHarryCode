@@ -71,6 +71,7 @@ export default function AboutSection(): React.ReactElement {
   const [isAutoTyping, setIsAutoTyping] = useState(false);
   const [isBooting, setIsBooting] = useState(false);
   const [terminalReady, setTerminalReady] = useState(false);
+  const [isSectionVisible, setIsSectionVisible] = useState(false);
   const [history, setHistory] = useState<
     { id: number; command: string; title: string; body: React.ReactNode; tone: 'normal' | 'error' }[]
   >([]);
@@ -249,6 +250,17 @@ export default function AboutSection(): React.ReactElement {
   const playKeySound = useCallback(() => beep(300 + Math.random() * 140, 0.03, 'square', 0.02), [beep]);
   const playEnterSound = useCallback(() => beep(720, 0.09, 'triangle', 0.05), [beep]);
   const playErrorSound = useCallback(() => beep(160, 0.18, 'sawtooth', 0.05), [beep]);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const visibilityObs = new IntersectionObserver(
+      ([entry]) => setIsSectionVisible(entry?.isIntersecting ?? false),
+      { rootMargin: '140px' }
+    );
+    visibilityObs.observe(el);
+    return () => visibilityObs.disconnect();
+  }, []);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -532,6 +544,7 @@ export default function AboutSection(): React.ReactElement {
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className={cn(
           'terminal-section relative isolate overflow-hidden scroll-mt-24 flex w-full items-center justify-center p-2 sm:p-4 transition-all duration-300',
+          !isSectionVisible && 'terminal-paused',
           windowState === 'maximized' ? 'min-h-screen' : 'min-h-[520px] sm:min-h-[650px]'
         )}
       >
@@ -547,7 +560,7 @@ export default function AboutSection(): React.ReactElement {
         <Card
           ref={sectionRef}
           className={cn(
-            'relative z-10 p-0 overflow-hidden gap-0 rounded-xl border border-white/15 bg-zinc-950/60 font-mono text-xs sm:text-sm text-zinc-200 shadow-2xl transition-all duration-300 backdrop-blur-xl',
+            'relative z-10 p-0 overflow-hidden gap-0 rounded-xl border border-white/15 bg-zinc-950/88 md:bg-zinc-950/60 font-mono text-xs sm:text-sm text-zinc-200 shadow-2xl transition-all duration-300 md:backdrop-blur-xl',
             getContainerStyles()
           )}
         >
@@ -578,7 +591,7 @@ export default function AboutSection(): React.ReactElement {
           </AnimatePresence>
 
           {/* macOS Window Title Bar */}
-          <div className="relative z-10 flex items-center justify-between border-b border-white/10 bg-zinc-900/45 px-3 py-2 select-none group backdrop-blur-md">
+          <div className="relative z-10 flex items-center justify-between border-b border-white/10 bg-zinc-900/70 md:bg-zinc-900/45 px-3 py-2 select-none group md:backdrop-blur-md">
             {/* macOS Window Dots Controls */}
             <div className="flex items-center gap-2 z-10">
               <Tooltip>
@@ -648,7 +661,7 @@ export default function AboutSection(): React.ReactElement {
           </div>
 
           {windowState !== 'minimized' && terminalReady && (
-            <CardContent className="relative z-10 flex flex-1 min-h-0 flex-col p-0 bg-zinc-950/35 backdrop-blur-[2px]">
+            <CardContent className="relative z-10 flex flex-1 min-h-0 flex-col p-0 bg-zinc-950/35 md:backdrop-blur-[2px]">
               {/* Terminal Content Container */}
               <div 
                 ref={scrollAreaRef} 
@@ -728,7 +741,7 @@ export default function AboutSection(): React.ReactElement {
               {/* Translucent macOS Prompt Input */}
               {!isAnimating && <form
                 onSubmit={handleSubmit}
-                className="sticky bottom-0 z-10 flex items-center gap-1.5 border-t border-white/10 bg-zinc-950/55 px-4 py-2.5 backdrop-blur-md"
+                className="sticky bottom-0 z-10 flex items-center gap-1.5 border-t border-white/10 bg-zinc-950/80 md:bg-zinc-950/55 px-4 py-2.5 md:backdrop-blur-md"
               >
                 <span className="font-bold text-xs sm:text-sm text-emerald-400 shrink-0">
                   devharrycode<span className="text-zinc-600">:</span><span className="text-blue-400">~</span><span className="text-zinc-200">$</span>

@@ -292,7 +292,7 @@ export default function Navbar() {
 
           <LiquidGlass
             enabled
-            blurAmount="16px"
+            blurAmount="12px"
             className="
             liquid-glass
             rounded-full

@@ -92,35 +92,50 @@ const PROJECTS: Project[] = [
 const ShaderPlane: React.FC<{
   targetMouse: React.MutableRefObject<THREE.Vector2>;
   pointerInside: React.MutableRefObject<boolean>;
-}> = ({ targetMouse, pointerInside }) => {
+  invalidateRef: React.MutableRefObject<(() => void) | null>;
+}> = ({ targetMouse, pointerInside, invalidateRef }) => {
   const meshRef = useRef<THREE.Mesh>(null);
-  const { viewport, size, gl } = useThree();
-  const pixelRatio = gl.getPixelRatio();
+  const { viewport, size, invalidate } = useThree();
+
+  useEffect(() => {
+    invalidateRef.current = invalidate;
+    invalidate();
+    return () => {
+      invalidateRef.current = null;
+    };
+  }, [invalidate, invalidateRef]);
 
   const uniforms = useMemo(
     () => ({
-      u_time: { value: 0 },
-      u_resolution: { value: new THREE.Vector2(size.width * pixelRatio, size.height * pixelRatio) },
+      u_aspect: { value: size.width / Math.max(size.height, 1) },
       u_mouse: { value: new THREE.Vector2(0.5, 0.5) },
       u_pointerVisibility: { value: 0 },
     }),
-    [pixelRatio, size]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   const lastSizeRef = useRef({ w: 0, h: 0 });
 
-  useFrame((state) => {
+  useFrame((_, delta) => {
     if (!meshRef.current) return;
     const mat = meshRef.current.material as THREE.ShaderMaterial;
     mat.uniforms.u_mouse.value.copy(targetMouse.current);
     const visibilityTarget = pointerInside.current ? 1 : 0;
-    mat.uniforms.u_pointerVisibility.value +=
-      (visibilityTarget - mat.uniforms.u_pointerVisibility.value) * 0.12;
-    mat.uniforms.u_time.value = state.clock.getElapsedTime();
+    const currentVis = mat.uniforms.u_pointerVisibility.value;
+    const nextVis = THREE.MathUtils.damp(currentVis, visibilityTarget, 10, Math.min(delta, 0.05));
+    mat.uniforms.u_pointerVisibility.value = nextVis;
+
     if (lastSizeRef.current.w !== size.width || lastSizeRef.current.h !== size.height) {
       lastSizeRef.current.w = size.width;
       lastSizeRef.current.h = size.height;
-      mat.uniforms.u_resolution.value.set(size.width * gl.getPixelRatio(), size.height * gl.getPixelRatio());
+      mat.uniforms.u_aspect.value = size.width / Math.max(size.height, 1);
+    }
+
+    if (pointerInside.current || nextVis > 0.003) {
+      invalidate();
+    } else if (nextVis !== 0) {
+      mat.uniforms.u_pointerVisibility.value = 0;
     }
   });
 
@@ -133,32 +148,34 @@ const ShaderPlane: React.FC<{
   `;
 
   const fragmentShader = `
-    uniform vec2 u_resolution;
+    precision mediump float;
+
+    uniform float u_aspect;
     uniform vec2 u_mouse;
-    uniform float u_time;
     uniform float u_pointerVisibility;
     varying vec2 vUv;
 
     void main() {
-      vec2 st = gl_FragCoord.xy / u_resolution.xy;
-      st.x *= u_resolution.x / u_resolution.y;
-      
-      vec2 m = u_mouse;
-      m.x *= u_resolution.x / u_resolution.y;
+      vec2 st = vUv;
+      st.x *= u_aspect;
 
-      float gridSize = 32.0;
-      vec2 gridUv = fract(st * gridSize);
-      vec2 gridId = floor(st * gridSize);
-
-      vec2 tileCenter = (gridId + 0.5) / gridSize;
-      float dist = distance(tileCenter, m);
+      vec2 gridCoord = st * 32.0;
+      vec2 gridUv = fract(gridCoord);
 
       float intensity = 0.0;
-      float glowRadius = mix(0.08, 0.5, u_pointerVisibility);
-      if (u_pointerVisibility > 0.001 && dist < glowRadius) {
-        float t = dist / glowRadius;
-        intensity = smoothstep(1.0, 0.0, t);
-        intensity = intensity * intensity * u_pointerVisibility;
+      if (u_pointerVisibility > 0.003) {
+        vec2 m = u_mouse;
+        m.x *= u_aspect;
+        vec2 tileCenter = (floor(gridCoord) + 0.5) / 32.0;
+        vec2 diff = tileCenter - m;
+        float distSq = dot(diff, diff);
+        float glowRadius = mix(0.08, 0.5, u_pointerVisibility);
+        float glowRadiusSq = glowRadius * glowRadius;
+        if (distSq < glowRadiusSq) {
+          float t = sqrt(distSq) / glowRadius;
+          intensity = smoothstep(1.0, 0.0, t);
+          intensity = intensity * intensity * u_pointerVisibility;
+        }
       }
 
       float border = step(0.03, gridUv.x) * step(0.03, gridUv.y) * step(gridUv.x, 0.97) * step(gridUv.y, 0.97);
@@ -181,6 +198,7 @@ const ShaderPlane: React.FC<{
         fragmentShader={fragmentShader}
         uniforms={uniforms}
         transparent
+        depthWrite={false}
       />
     </mesh>
   );
@@ -190,10 +208,22 @@ export const ProjectSection: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const targetMouse = useRef(new THREE.Vector2(0.5, 0.5));
   const pointerInside = useRef(false);
+  const invalidateRef = useRef<(() => void) | null>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const [canvasVisible, setCanvasVisible] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
   const isScrolling = useRef(false);
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const mobileQuery = window.matchMedia("(pointer: coarse)");
+    const updateMobile = () => {
+      setIsMobileDevice(mobileQuery.matches || window.innerWidth < 768);
+    };
+    updateMobile();
+    mobileQuery.addEventListener("change", updateMobile);
+    return () => mobileQuery.removeEventListener("change", updateMobile);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -225,16 +255,18 @@ export const ProjectSection: React.FC = () => {
   }, []);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isScrolling.current) return;
+    if (isScrolling.current || e.pointerType === "touch") return;
     pointerInside.current = true;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = 1.0 - (e.clientY - rect.top) / rect.height;
     targetMouse.current.set(x, y);
+    invalidateRef.current?.();
   };
 
   const handlePointerLeave = () => {
     pointerInside.current = false;
+    invalidateRef.current?.();
   };
 
   return (
@@ -247,14 +279,21 @@ export const ProjectSection: React.FC = () => {
     >
       <div className="absolute inset-0 pointer-events-none z-0">
         <Canvas
-          frameloop={canvasVisible ? "always" : "never"}
-          dpr={[1, 1.25]}
-          performance={{ min: 0.5, max: 1, debounce: 200 }}
+          frameloop={canvasVisible ? "demand" : "never"}
+          dpr={isMobileDevice ? 1 : [1, 1.25]}
           camera={{ position: [0, 0, 1] }}
-          gl={{ alpha: true, antialias: false, powerPreference: "default" }}
-          style={{ display: "block", willChange: "transform" }}
+          gl={{
+            alpha: true,
+            antialias: false,
+            powerPreference: isMobileDevice ? "low-power" : "default",
+          }}
+          style={{ display: "block" }}
         >
-          <ShaderPlane targetMouse={targetMouse} pointerInside={pointerInside} />
+          <ShaderPlane
+            targetMouse={targetMouse}
+            pointerInside={pointerInside}
+            invalidateRef={invalidateRef}
+          />
         </Canvas>
       </div>
 
@@ -318,8 +357,8 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
   // Dynamic radial gradient background evaluated purely on GPU layer
   const glowBg = useMotionTemplate`radial-gradient(350px circle at ${mouseX}px ${mouseY}px, rgba(255, 255, 255, 0.18), transparent 80%)`;
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "touch" || !cardRef.current) return;
 
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -343,8 +382,8 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
   return (
     <motion.div
       ref={cardRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handleMouseLeave}
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -369,7 +408,7 @@ const ProjectCard: React.FC<CardProps> = ({ project, index, onSelect }) => {
         ${project.bentoSpan}
         liquid-glass-3d
         relative group cursor-pointer rounded-2xl
-        backdrop-blur-md flex flex-col justify-between
+        bg-zinc-950/80 md:bg-transparent md:backdrop-blur-md flex flex-col justify-between
         transition-shadow duration-300 ease-out
         hover:shadow-[0_30px_60px_rgba(0,0,0,0.9),0_0_50px_rgba(255,255,255,0.15)]
       `}

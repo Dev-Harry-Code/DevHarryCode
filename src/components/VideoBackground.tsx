@@ -39,9 +39,22 @@ export default function VideoBackground() {
       unlockMedia();
     }
 
+    const handleVisibility = () => {
+      const { activeIdx: currIdx, isPlaying: currPlaying, mediaUnlocked: currUnlocked } = stateRef.current;
+      const currentRef = currIdx === 0 ? videoRef0.current : videoRef1.current;
+      if (!currentRef) return;
+      if (document.visibilityState === "hidden") {
+        if (!currentRef.paused) currentRef.pause();
+      } else if (currUnlocked && currPlaying && window.scrollY <= 550) {
+        currentRef.play().catch(() => {});
+      }
+    };
+
     window.addEventListener("portfolio:media-consent", unlockMedia);
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       window.removeEventListener("portfolio:media-consent", unlockMedia);
+      document.removeEventListener("visibilitychange", handleVisibility);
       mediaQuery.removeEventListener("change", updateMotionPreference);
     };
   }, []);
@@ -159,7 +172,7 @@ export default function VideoBackground() {
     <>
       <div
         ref={fadeRef}
-        className="fixed inset-0 z-0 h-screen w-full overflow-hidden pointer-events-none opacity-55 blur-[3px] sm:blur-[5px]"
+        className="fixed inset-0 z-0 h-screen w-full overflow-hidden pointer-events-none opacity-55 md:blur-[5px]"
       >
         {/* Video 1 */}
         <video

@@ -44,15 +44,20 @@ export default function DotMeshBackground({
     const context = canvas.getContext("2d");
     if (!context) return;
 
+    const isMobile =
+      window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768;
+
     let width = 0;
     let height = 0;
     let devicePixelRatio = 1;
     let dots: Dot[] = [];
     let animationFrame = 0;
+    let isRunning = false;
     let visible = true;
     let documentVisible = document.visibilityState === "visible";
     let reducedMotion = false;
     let lastTime = performance.now();
+    let lastDrawTime = 0;
     let lastPointerTime = lastTime;
     let pointerSpeed = 0;
 
@@ -66,10 +71,14 @@ export default function DotMeshBackground({
     const ripples: Ripple[] = [];
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const baseFill = `rgba(${accentColor}, 0.32)`;
+    const interactionRadiusSq = interactionRadius * interactionRadius;
+    const TWO_PI = Math.PI * 2;
 
     const buildDots = () => {
       dots = [];
-      const spacing = Math.max(14, Math.min(32, dotSpacing));
+      const minSpacing = isMobile ? Math.max(40, dotSpacing) : Math.max(14, dotSpacing);
+      const spacing = Math.min(48, minSpacing);
       const columns = Math.ceil(width / spacing) + 1;
       const rows = Math.ceil(height / spacing) + 1;
 
@@ -78,18 +87,136 @@ export default function DotMeshBackground({
           dots.push({
             x: column * spacing,
             y: row * spacing,
-            phase: (column * 17.31 + row * 29.17) % (Math.PI * 2),
-            secondaryPhase: (column * 7.13 - row * 11.47) % (Math.PI * 2),
+            phase: (column * 17.31 + row * 29.17) % TWO_PI,
+            secondaryPhase: (column * 7.13 - row * 11.47) % TWO_PI,
           });
         }
       }
+    };
+
+    const draw = (now: number, forceStatic = false) => {
+      if (!width || !height) return;
+
+      const elapsed = Math.min(80, now - lastTime);
+      lastTime = now;
+      const time = now * 0.001;
+      const animationTime = reducedMotion || forceStatic ? 0 : time;
+      const smoothing = reducedMotion ? 1 : Math.min(1, elapsed / 90);
+      pointer.x += (pointer.targetX - pointer.x) * smoothing;
+      pointer.y += (pointer.targetY - pointer.y) * smoothing;
+      pointerSpeed *= reducedMotion ? 0 : 0.92;
+
+      context.clearRect(0, 0, width, height);
+
+      const activeRipples = ripples.filter((ripple) => now - ripple.startedAt < 1500);
+      ripples.splice(0, ripples.length, ...activeRipples);
+      const hasPointer = pointer.active && !reducedMotion;
+      const hasRipples = activeRipples.length > 0;
+
+      // Batch all non-interactive idle dots into a single path fill
+      context.fillStyle = baseFill;
+      context.beginPath();
+
+      const activeDots: { x: number; y: number; radius: number; alpha: number }[] = [];
+
+      for (let i = 0; i < dots.length; i += 1) {
+        const dot = dots[i];
+        const idleX = reducedMotion ? dot.x : dot.x + Math.sin(animationTime * 0.38 + dot.phase) * 0.8;
+        const idleY = reducedMotion ? dot.y : dot.y + Math.cos(animationTime * 0.31 + dot.secondaryPhase) * 0.8;
+
+        let influence = 0;
+        let directionX = 0;
+        let directionY = 0;
+
+        if (hasPointer) {
+          const dx = idleX - pointer.x;
+          const dy = idleY - pointer.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < interactionRadiusSq) {
+            const distance = Math.sqrt(distSq);
+            const norm = 1 - distance / interactionRadius;
+            influence = norm * norm;
+            if (distance > 0.001) {
+              directionX = dx / distance;
+              directionY = dy / distance;
+            }
+          }
+        }
+
+        let rippleInfluence = 0;
+        if (hasRipples) {
+          for (let r = 0; r < activeRipples.length; r += 1) {
+            const ripple = activeRipples[r];
+            const age = (now - ripple.startedAt) / 1000;
+            const rippleRadius = age * 170;
+            const rdx = idleX - ripple.x;
+            const rdy = idleY - ripple.y;
+            const rippleDistance = Math.hypot(rdx, rdy);
+            const ringDistance = Math.abs(rippleDistance - rippleRadius);
+            if (ringDistance < 36) {
+              rippleInfluence += Math.exp(-(ringDistance * ringDistance) / 180) * Math.max(0, 1 - age / 1.5);
+              if (rippleDistance > 0.001 && influence === 0) {
+                directionX = rdx / rippleDistance;
+                directionY = rdy / rippleDistance;
+              }
+            }
+          }
+        }
+
+        if (influence > 0.005 || rippleInfluence > 0.005) {
+          const x = idleX + directionX * (influence * 5 + rippleInfluence * 2);
+          const y = idleY + directionY * (influence * 5 + rippleInfluence * 2);
+          const alpha = Math.min(0.9, 0.32 + influence * (0.52 + pointerSpeed * 0.2) + rippleInfluence * 0.3);
+          const radius = 0.85 + influence * (1.85 + pointerSpeed * 0.6) + rippleInfluence * 0.65;
+          activeDots.push({ x, y, radius, alpha });
+        } else {
+          context.moveTo(idleX + 0.85, idleY);
+          context.arc(idleX, idleY, 0.85, 0, TWO_PI);
+        }
+      }
+
+      context.fill();
+
+      for (let i = 0; i < activeDots.length; i += 1) {
+        const d = activeDots[i];
+        context.fillStyle = `rgba(${accentColor}, ${d.alpha.toFixed(2)})`;
+        context.beginPath();
+        context.arc(d.x, d.y, d.radius, 0, TWO_PI);
+        context.fill();
+      }
+    };
+
+    const startLoop = () => {
+      if (isRunning || !visible || !documentVisible || reducedMotion) return;
+      isRunning = true;
+      lastTime = performance.now();
+      animationFrame = requestAnimationFrame(loop);
+    };
+
+    const stopLoop = () => {
+      if (!isRunning) return;
+      isRunning = false;
+      cancelAnimationFrame(animationFrame);
+    };
+
+    const loop = (now: number) => {
+      if (!visible || !documentVisible || reducedMotion) {
+        isRunning = false;
+        return;
+      }
+      const minInterval = isMobile && ripples.length === 0 ? 1000 / 24 : 0;
+      if (minInterval === 0 || now - lastDrawTime >= minInterval) {
+        lastDrawTime = now;
+        draw(now);
+      }
+      animationFrame = requestAnimationFrame(loop);
     };
 
     const resize = () => {
       const rect = root.getBoundingClientRect();
       width = rect.width;
       height = rect.height;
-      devicePixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      devicePixelRatio = isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
       canvas.width = Math.max(1, Math.round(width * devicePixelRatio));
       canvas.height = Math.max(1, Math.round(height * devicePixelRatio));
       buildDots();
@@ -129,63 +256,11 @@ export default function DotMeshBackground({
 
     const handleVisibilityChange = () => {
       documentVisible = document.visibilityState === "visible";
-    };
-
-    const draw = (now: number, forceStatic = false) => {
-      if (!width || !height) return;
-
-      const elapsed = Math.min(80, now - lastTime);
-      lastTime = now;
-      const time = now * 0.001;
-      const animationTime = reducedMotion || forceStatic ? 0 : time;
-      const smoothing = reducedMotion ? 1 : Math.min(1, elapsed / 90);
-      pointer.x += (pointer.targetX - pointer.x) * smoothing;
-      pointer.y += (pointer.targetY - pointer.y) * smoothing;
-      pointerSpeed *= reducedMotion ? 0 : 0.92;
-
-      context.clearRect(0, 0, width, height);
-      context.lineWidth = 1;
-
-      const activeRipples = ripples.filter((ripple) => now - ripple.startedAt < 1500);
-      ripples.splice(0, ripples.length, ...activeRipples);
-
-      for (const dot of dots) {
-        const idleX = reducedMotion ? dot.x : dot.x + Math.sin(animationTime * 0.38 + dot.phase) * 0.8;
-        const idleY = reducedMotion ? dot.y : dot.y + Math.cos(animationTime * 0.31 + dot.secondaryPhase) * 0.8;
-        const distance = Math.hypot(idleX - pointer.x, idleY - pointer.y);
-        const influence = pointer.active && !reducedMotion
-          ? Math.max(0, 1 - distance / interactionRadius) ** 2
-          : 0;
-        const directionX = distance > 0.001 ? (idleX - pointer.x) / distance : 0;
-        const directionY = distance > 0.001 ? (idleY - pointer.y) / distance : 0;
-        let x = idleX + directionX * influence * 5;
-        let y = idleY + directionY * influence * 5;
-        let rippleInfluence = 0;
-
-        for (const ripple of activeRipples) {
-          const age = (now - ripple.startedAt) / 1000;
-          const rippleRadius = age * 170;
-          const rippleDistance = Math.hypot(idleX - ripple.x, idleY - ripple.y);
-          const ringDistance = Math.abs(rippleDistance - rippleRadius);
-          rippleInfluence += Math.exp(-(ringDistance * ringDistance) / 180) * Math.max(0, 1 - age / 1.5);
-        }
-
-        x += directionX * rippleInfluence * 2;
-        y += directionY * rippleInfluence * 2;
-
-        const alpha = Math.min(0.9, 0.32 + influence * (0.52 + pointerSpeed * 0.2) + rippleInfluence * 0.3);
-        const radius = 0.85 + influence * (1.85 + pointerSpeed * 0.6) + rippleInfluence * 0.65;
-        context.fillStyle = `rgba(${accentColor}, ${alpha})`;
-        context.beginPath();
-        context.arc(x, y, radius, 0, Math.PI * 2);
-        context.fill();
+      if (documentVisible && visible) {
+        startLoop();
+      } else {
+        stopLoop();
       }
-    };
-
-    const loop = (now: number) => {
-      animationFrame = requestAnimationFrame(loop);
-      if (!visible || !documentVisible) return;
-      draw(now);
     };
 
     const updateMotionPreference = () => {
@@ -193,6 +268,9 @@ export default function DotMeshBackground({
       if (reducedMotion) {
         pointer.active = false;
         ripples.length = 0;
+        stopLoop();
+      } else {
+        startLoop();
       }
       draw(performance.now(), reducedMotion);
     };
@@ -200,6 +278,11 @@ export default function DotMeshBackground({
     const observer = new IntersectionObserver(
       ([entry]) => {
         visible = entry?.isIntersecting ?? false;
+        if (visible && documentVisible) {
+          startLoop();
+        } else {
+          stopLoop();
+        }
       },
       { rootMargin: "160px" },
     );
@@ -215,10 +298,10 @@ export default function DotMeshBackground({
 
     reducedMotion = motionQuery.matches;
     resize();
-    animationFrame = requestAnimationFrame(loop);
+    startLoop();
 
     return () => {
-      cancelAnimationFrame(animationFrame);
+      stopLoop();
       resizeObserver.disconnect();
       observer.disconnect();
       motionQuery.removeEventListener("change", updateMotionPreference);

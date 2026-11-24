@@ -179,6 +179,25 @@ html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
 @keyframes terminal-mesh-drift { from { background-position: 0 0, 0 0; } to { background-position: 0 58px, 58px 0; } }
 @keyframes terminal-shoot { 0% { transform: translate(0, 0) rotate(-45deg); opacity: 0; } 5% { opacity: 0.8; } 20% { transform: translate(-200px, 200px) rotate(-45deg); opacity: 0; } 100% { opacity: 0; } }
 
+@media (max-width: 767px) {
+  .terminal-fluid__blob {
+    filter: none;
+    opacity: 0.34;
+    mix-blend-mode: normal;
+  }
+  .terminal-fluid__sheen {
+    filter: none;
+    opacity: 0.12;
+  }
+}
+
+.terminal-paused .stars,
+.terminal-paused .shooting-star,
+.terminal-paused .terminal-fluid__blob,
+.terminal-paused .terminal-fluid__sheen {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .terminal-ambient__stars, .terminal-ambient__mesh, .terminal-ambient__shooting-star, .terminal-fluid__blob, .terminal-fluid__sheen,
   .stars, .shooting-star { animation: none; }
