@@ -1,7 +1,6 @@
 "use client";
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
-import { useShaderExclude } from "@/components/ShaderExcludeContext";
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { motion, AnimatePresence, useMotionValue, useSpring, useMotionTemplate } from 'framer-motion';
@@ -189,7 +188,6 @@ const ShaderPlane: React.FC<{
 
 export const ProjectSection: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const projectRef = useShaderExclude<HTMLDivElement>("projectRef");
   const targetMouse = useRef(new THREE.Vector2(0.5, 0.5));
   const pointerInside = useRef(false);
   const sectionRef = useRef<HTMLElement>(null);
@@ -247,7 +245,7 @@ export const ProjectSection: React.FC = () => {
       onPointerLeave={handlePointerLeave}
       className="dark relative min-h-screen w-full scroll-mt-24 bg-[#030303] py-20 px-6 text-foreground select-none [mask-image:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)] [WebkitMaskImage:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)]"
     >
-      <div ref={projectRef} className="absolute inset-0 pointer-events-none z-0">
+      <div className="absolute inset-0 pointer-events-none z-0">
         <Canvas
           frameloop={canvasVisible ? "always" : "never"}
           dpr={[1, 1.25]}

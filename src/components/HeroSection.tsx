@@ -1,153 +1,83 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
-import InteractiveProfileCard from "@/components/profile";
-import HeroKeywordPreview, {
-  HERO_PREVIEWS,
-  type HeroKeyword,
-} from "@/components/HeroKeywordPreview";
-import type { PointerEvent as ReactPointerEvent, FocusEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import DotMeshBackground from "@/components/DotMeshBackground";
+import HeroKeywordPreview, { type HeroKeyword } from "@/components/HeroKeywordPreview";
+import type { FocusEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
-interface PreviewState {
-  keyword: HeroKeyword;
-  index: number;
-  x: number;
-  y: number;
-}
+const ProjectSphereCanvas = dynamic(() => import("@/components/ProjectSphereCanvas"), { ssr: false });
 
-const keywordRects = new WeakMap<HTMLElement, DOMRect>();
+interface PreviewState { keyword: HeroKeyword; x: number; y: number; }
+const EMAIL = "dev.harshalsharma@gmail.com";
 
-function quantizePointer(value: number) {
-  return Math.round(value / 10) * 10;
+function clampPreview(value: number, max: number, size: number) {
+  return Math.max(16, Math.min(value, Math.max(16, max - size - 16)));
 }
 
 export default function HeroSection() {
+  const reducedMotion = useReducedMotion();
   const { scrollY } = useScroll();
-  const translateY = useTransform(scrollY, [0, 1000], [0, -400]);
-  const opacity = useTransform(scrollY, [0, 400], [1, 0]);
+  const heroRef = useRef<HTMLElement>(null);
+  const translateY = useTransform(scrollY, [0, 900], [0, -180]);
+  const opacity = useTransform(scrollY, [0, 650], [1, 0]);
+  const scale = useTransform(scrollY, [0, 900], [1, 0.96]);
   const [preview, setPreview] = useState<PreviewState | null>(null);
 
-  useEffect(() => {
-    // Preload keyword preview images during idle time after the hero entrance completes
-    const preload = () => {
-      Object.values(HERO_PREVIEWS)
-        .flat()
-        .forEach((src) => {
-          const image = new window.Image();
-          image.src = src;
-        });
-    };
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const handle = (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback(preload, { timeout: 2000 });
-      return () => (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(handle);
-    } else {
-      const timer = setTimeout(preload, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  const showPreview = (keyword: HeroKeyword, clientX: number, clientY: number, index = 0) => {
-    setPreview({
-      keyword,
-      index,
-      x: quantizePointer(clientX + 20),
-      y: quantizePointer(clientY + 22),
-    });
+  const positionPreview = (clientX: number, clientY: number, keyword: HeroKeyword) => {
+    const width = window.innerWidth; const height = window.innerHeight;
+    setPreview({ keyword, x: clampPreview(clientX + 20, width, width < 640 ? 256 : 288), y: clampPreview(clientY + 72, height, 150) });
   };
-
+  const showPreview = (keyword: HeroKeyword, clientX: number, clientY: number) => positionPreview(clientX, clientY, keyword);
   const handleKeywordMove = (event: ReactPointerEvent<HTMLSpanElement>, keyword: HeroKeyword) => {
     if (event.pointerType === "touch") return;
-    const target = event.currentTarget;
-    let rect = keywordRects.get(target);
-    if (!rect) {
-      rect = target.getBoundingClientRect();
-      keywordRects.set(target, rect);
-    }
-    const relativeX = Math.max(0, Math.min(rect.width - 1, event.clientX - rect.left));
-    const index = Math.floor(relativeX / 5) % HERO_PREVIEWS[keyword].length;
-    const x = quantizePointer(event.clientX + 20);
-    const y = quantizePointer(event.clientY + 22);
-    setPreview({ keyword, index, x, y });
+    positionPreview(event.clientX, event.clientY, keyword);
   };
-
-  const handleKeywordFocus = (event: FocusEvent<HTMLSpanElement>, keyword: HeroKeyword) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    showPreview(keyword, rect.left, rect.bottom);
-  };
-
-  const handleKeywordTouch = (event: ReactPointerEvent<HTMLSpanElement>, keyword: HeroKeyword) => {
-    if (event.pointerType !== "touch") return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const nextIndex = preview?.keyword === keyword
-      ? (preview.index + 1) % HERO_PREVIEWS[keyword].length
-      : 0;
-    showPreview(keyword, rect.left, rect.bottom, nextIndex);
-  };
-
+  const handleKeywordFocus = (event: FocusEvent<HTMLSpanElement>, keyword: HeroKeyword) => { const rect = event.currentTarget.getBoundingClientRect(); showPreview(keyword, rect.left, rect.bottom); };
   const handleKeywordKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>, keyword: HeroKeyword) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const nextIndex = preview?.keyword === keyword
-      ? (preview.index + 1) % HERO_PREVIEWS[keyword].length
-      : 0;
-    showPreview(keyword, rect.left, rect.bottom, nextIndex);
+    if (event.key !== "Enter" && event.key !== " ") return; event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect(); showPreview(keyword, rect.left, rect.bottom);
   };
-
   const keywordProps = (keyword: HeroKeyword) => ({
-    tabIndex: 0,
-    role: "button" as const,
-    "aria-label": `Preview ${keyword}`,
+    tabIndex: 0, role: "button" as const, "aria-label": `Definition of ${keyword}`,
     onPointerMove: (event: ReactPointerEvent<HTMLSpanElement>) => handleKeywordMove(event, keyword),
-    onPointerUp: (event: ReactPointerEvent<HTMLSpanElement>) => handleKeywordTouch(event, keyword),
     onKeyDown: (event: ReactKeyboardEvent<HTMLSpanElement>) => handleKeywordKeyDown(event, keyword),
     onFocus: (event: FocusEvent<HTMLSpanElement>) => handleKeywordFocus(event, keyword),
-    onBlur: (event: FocusEvent<HTMLSpanElement>) => {
-      keywordRects.delete(event.currentTarget);
-      setPreview(null);
-    },
-    onPointerLeave: (event: ReactPointerEvent<HTMLSpanElement>) => {
-      keywordRects.delete(event.currentTarget);
-      if (event.pointerType !== "touch") setPreview(null);
-    },
+    onBlur: () => setPreview(null),
+    onPointerLeave: (event: ReactPointerEvent<HTMLSpanElement>) => { if (event.pointerType !== "touch") setPreview(null); },
   });
+  const enter = reducedMotion ? { opacity: 1, x: 0, y: 0, scale: 1 } : undefined;
 
   return (
-    <section className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-10 px-6 py-28 text-center sm:gap-14 md:flex-row md:gap-20 md:py-0">
-      <motion.div
-        className="order-2 max-w-5xl md:order-1"
-        style={{ y: translateY, opacity }}
-      >
-        <motion.div
-          initial={{ opacity: 0, x: -36 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-          className="will-change-[transform,opacity] [transform:translateZ(0)]"
-        >
-          <span className="rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs sm:px-5 sm:py-2 sm:text-sm md:text-base">
-            Polyglot Programmer • Full Stack • Creative Engineering
-          </span>
-
-        <h1 className="mt-6 text-4xl font-extrabold leading-tight tracking-tight sm:mt-8 sm:text-5xl md:text-6xl lg:text-8xl">
-          <span className="font-mono text-white/90">Hi! I&apos;m Harshal.</span>
-          <span className="block bg-linear-to-r from-cyan-100/90 via-white/80 to-violet-200/70 bg-clip-text font-serif font-normal italic tracking-normal text-transparent [filter:drop-shadow(0_4px_16px_rgba(255,255,255,0.12))]">
-            <span className="hero-keyword inline-block cursor-help rounded-lg px-1 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("MaTriX")}>MaTriX</span>{" "}
-            <span className="hero-keyword inline-block cursor-help rounded-lg px-1 transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("programmer")}>programmer</span>
-          </span>
-        </h1>
-
-          <p className="mx-auto mt-6 max-w-3xl text-base text-white/70 sm:mt-8 sm:text-lg">
-            Modern interfaces powered by code, immersive visuals and elegant
-            engineering.
-          </p>
+    <section ref={heroRef} className="relative isolate z-10 flex min-h-[min(900px,100svh)] items-center overflow-hidden px-6 py-28 sm:px-10 md:min-h-screen md:px-14 lg:px-20">
+      <DotMeshBackground className="opacity-90" dotSpacing={34} interactionRadius={210} accentColor="75, 146, 255" />
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_24%_48%,rgba(25,55,125,0.22),transparent_44%),linear-gradient(180deg,rgba(3,6,18,0.12),rgba(3,5,14,0.68))]" />
+      <motion.div className="relative z-10 mx-auto grid w-full max-w-[1760px] items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] lg:gap-12 xl:grid-cols-[minmax(0,1fr)_760px] xl:gap-0" style={reducedMotion ? undefined : { y: translateY, opacity, scale }}>
+        <div className="max-w-3xl text-left lg:max-w-[72rem]">
+          <motion.div initial={reducedMotion ? enter : { opacity: 0, y: 18 }} animate={enter ?? { opacity: 1, y: 0 }} transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}>
+            <span className="inline-flex rounded-full border border-white/20 bg-white/[0.08] px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-white/70 backdrop-blur-md sm:px-5 sm:py-2 sm:text-xs">Polyglot Programmer <span className="mx-2 text-cyan-200/60">•</span> Full Stack <span className="mx-2 text-violet-200/60">•</span> Creative Engineering</span>
+          </motion.div>
+          <motion.h1 initial={reducedMotion ? enter : { opacity: 0, y: 24 }} animate={enter ?? { opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.12, ease: [0.16, 1, 0.3, 1] }} className="mt-7 max-w-none overflow-visible text-[clamp(2.7rem,5.5vw,6.8rem)] font-extrabold leading-[0.94] tracking-[-0.055em] sm:mt-9">
+            <span className="block font-sans font-semibold tracking-[-0.07em] text-white/90 lg:whitespace-nowrap">Hi! I&apos;m Harshal.</span>
+            <span className="mt-3 block max-w-full overflow-visible bg-linear-to-r from-cyan-100 via-white/90 to-violet-200 bg-clip-text pb-2 font-serif text-[1.05em] font-normal italic leading-[1.08] tracking-[-0.055em] text-transparent [filter:drop-shadow(0_4px_16px_rgba(255,255,255,0.12))] sm:mt-4 lg:whitespace-nowrap lg:text-[0.84em]">
+              <span className="hero-keyword inline-block cursor-pointer px-1 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("MaTriX")}>MaTriX</span>{" "}
+              <span className="hero-keyword inline-block cursor-pointer px-1 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("programmer")}>programmer</span>
+            </span>
+          </motion.h1>
+          <motion.div initial={reducedMotion ? enter : { opacity: 0, y: 18 }} animate={enter ?? { opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.27, ease: [0.16, 1, 0.3, 1] }}>
+            <p className="mt-7 max-w-xl text-base leading-7 text-white/65 sm:mt-8 sm:text-lg sm:leading-8">Modern interfaces powered by code, immersive visuals and elegant engineering.</p>
+            <div className="mt-8 flex flex-wrap items-center gap-3 sm:mt-9">
+              <a href="#projects" className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_40px_rgba(100,180,255,0.22)] transition hover:-translate-y-0.5 hover:bg-cyan-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">View Projects</a>
+              <a href={`mailto:${EMAIL}`} className="rounded-full border border-white/25 bg-white/[0.07] px-5 py-3 text-sm font-semibold text-white/90 backdrop-blur-md transition hover:-translate-y-0.5 hover:border-cyan-200/60 hover:bg-white/[0.13] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Let&apos;s Talk <span aria-hidden="true" className="ml-1 text-cyan-200">↗</span></a>
+            </div>
+          </motion.div>
+        </div>
+        <motion.div initial={reducedMotion ? enter : { opacity: 0, y: 28, scale: 0.94 }} animate={enter ?? { opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.72, delay: 0.38, ease: [0.16, 1, 0.3, 1] }} className="flex w-full justify-center lg:justify-center">
+          <ProjectSphereCanvas />
         </motion.div>
       </motion.div>
-
-      <div className="order-1 md:order-2">
-        <InteractiveProfileCard />
-      </div>
-
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-32 bg-linear-to-t from-black/75 to-transparent" />
       {preview && <HeroKeywordPreview {...preview} />}
     </section>
   );

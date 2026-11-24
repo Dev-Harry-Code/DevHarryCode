@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useShaderExclude } from "@/components/ShaderExcludeContext";
 import { MapPin, Mail, Volume2, VolumeX, Copy, Check, X, Minus, Plus, Command } from 'lucide-react';
 import { FaGithub, FaLinkedin } from 'react-icons/fa6';
 
@@ -55,7 +54,6 @@ function SectionBody({ children }: { children: React.ReactNode }) {
 }
 
 export default function AboutSection(): React.ReactElement {
-  const AboutRef = useShaderExclude<HTMLElement>("AboutRef");
   const sectionRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -526,7 +524,7 @@ export default function AboutSection(): React.ReactElement {
         }
       `}</style>
       <motion.section
-        ref={AboutRef}
+        ref={sectionRef}
         id="about"
         initial={{ opacity: 0, y: 32 }}
         whileInView={{ opacity: 1, y: 0 }}

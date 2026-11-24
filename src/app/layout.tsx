@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "@/styles/liquid-glass.css";
-import { ShaderExcludeProvider } from "@/components/ShaderExcludeContext";
-import MouseShader from "@/components/MouseShader";
+import DeviceGate from "@/components/DeviceGate";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://devharrycode.vercel.app"),
@@ -70,19 +69,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       
       <body className="min-h-full flex flex-col">
-
-    <ShaderExcludeProvider>
-      <MouseShader
-  rippleIntensity={0.01}
-  rippleSpeed={2.0}
-  rippleRadius={10.0}
-  accelThreshold={0.015} // Optional: Adjust how sensitive the fast flick streak is
-  className="bg-slate-900 border-none"
->
-        {children}
-        </MouseShader>
-        </ShaderExcludeProvider>
-        </body>
+        <DeviceGate>
+          {children}
+        </DeviceGate>
+      </body>
     </html>
   );
 }

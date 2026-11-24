@@ -1,5 +1,4 @@
 "use client";
-import { useShaderExclude } from "@/components/ShaderExcludeContext";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion, useMotionValueEvent, useScroll } from "framer-motion";
@@ -26,8 +25,6 @@ const navItems = [
 ];
 
 export default function Navbar() {
-  const headerRef = useShaderExclude<HTMLElement>("navbar-header");
-  const mobileNavRef = useShaderExclude<HTMLDivElement>("navbar-mobile");
   const { scrollY } = useScroll();
 
   const [floating, setFloating] = useState(false);
@@ -85,7 +82,7 @@ export default function Navbar() {
     <>
       {/* Desktop / Top Navbar */}
 
-      <header ref={headerRef} className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pointer-events-none">
+      <header className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pointer-events-none">
 
         <motion.div
           initial={false}
@@ -179,7 +176,6 @@ export default function Navbar() {
       {/* Mobile Bottom Liquid Navigation */}
 
       <nav
-      ref={mobileNavRef}
         className="
         fixed
         bottom-5

@@ -1,0 +1,134 @@
+.section {
+  min-height: clamp(26rem, 52vw, 42rem);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #000;
+}
+
+.gallery {
+  --w: clamp(4rem, 16vw, 13rem);
+  display: flex;
+  width: 100%;
+  height: min(72vh, 33rem);
+  padding: clamp(1rem, 3vw, 3rem) clamp(.35rem, 1.4vw, 1.5rem);
+  gap: clamp(.2rem, .45vw, .45rem);
+  perspective: 50em;
+  transform-style: preserve-3d;
+  isolation: isolate;
+}
+
+.panel {
+  position: relative;
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  transform-origin: center bottom;
+  transform-style: preserve-3d;
+  transform: rotateY(calc((var(--i) - (var(--max-p) - 1) / 2) * 1deg));
+  transition: flex .5s cubic-bezier(.2, .8, .2, 1), transform .35s ease;
+  will-change: flex, transform;
+}
+
+.panel:hover,
+.panel:focus-visible {
+  flex: 4 1 0;
+  transform: rotateY(0deg);
+  z-index: 2;
+  outline: none;
+}
+
+.image,
+.hoverZone {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: clamp(.5rem, 1.5vw, 1rem);
+  backface-visibility: hidden;
+}
+
+.image {
+  background: var(--img) center / cover no-repeat;
+  filter: saturate(.78) brightness(.72);
+  transition: filter .35s ease, transform .5s ease;
+}
+
+.panel:hover .image,
+.panel:focus-visible .image {
+  filter: saturate(1) brightness(.98);
+  transform: scale(1.02);
+}
+
+.brandChar {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+  color: transparent;
+  font-family: "BBH Bartle", sans-serif;
+  font-size: clamp(3rem, 8vw, 10rem);
+  font-weight: 400;
+  line-height: .8;
+  letter-spacing: -.12em;
+  opacity: .68;
+  white-space: nowrap;
+  -webkit-text-stroke: 1px rgba(225, 240, 255, .72);
+  background: var(--img) center / cover no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 .8rem rgba(147, 197, 253, .2));
+  mix-blend-mode: screen;
+  pointer-events: none;
+  transition: opacity .22s ease, transform .35s ease;
+}
+
+.panel:hover .brandChar,
+.panel:focus-visible .brandChar {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(.9);
+}
+
+.hoverZone {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.panel::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .05), rgba(0, 0, 0, .28));
+  content: "";
+  pointer-events: none;
+}
+
+.panel:focus-visible {
+  box-shadow: 0 0 0 2px rgba(147, 197, 253, .85);
+}
+
+@media (max-width: 700px) {
+  .section { min-height: 25rem; }
+
+  .gallery {
+    height: 18rem;
+    padding: 1rem;
+    gap: .25rem;
+  }
+
+  .panel:hover,
+  .panel:focus-visible {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .image {
+    transition: none;
+  }
+}

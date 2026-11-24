@@ -1,0 +1,65 @@
+.loading {
+  min-height: 100vh;
+  background: #03050b;
+}
+
+.page {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  overflow: hidden;
+  padding: 2rem;
+  background: #03050b;
+  color: #f4f7ff;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: .55;
+  background-image: radial-gradient(circle, rgba(91, 169, 255, .45) 1px, transparent 1px);
+  background-size: 2.2rem 2.2rem;
+  mask-image: radial-gradient(ellipse at center, #000 0%, transparent 72%);
+}
+
+.card {
+  width: min(100%, 40rem);
+  padding: clamp(2rem, 6vw, 4.5rem);
+  border: 1px solid rgba(164, 188, 224, .25);
+  background: linear-gradient(145deg, rgba(15, 24, 47, .92), rgba(3, 5, 11, .96));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .42);
+}
+
+.eyebrow,
+.signature {
+  margin: 0;
+  color: #8edcff;
+  font-family: var(--font-mono), monospace;
+  font-size: .7rem;
+  letter-spacing: .2em;
+}
+
+.card h1 {
+  max-width: 12ch;
+  margin: 1.25rem 0 1.5rem;
+  font-size: clamp(2.2rem, 8vw, 5rem);
+  line-height: .98;
+  letter-spacing: -.06em;
+}
+
+.message {
+  max-width: 34rem;
+  margin: 0;
+  color: rgba(226, 232, 240, .72);
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  line-height: 1.6;
+}
+
+.signature {
+  display: block;
+  margin-top: 2.5rem;
+  color: rgba(226, 232, 240, .42);
+}

@@ -34,8 +34,8 @@ export default function InteractiveProfileCard() {
   const mouseY = useSpring(y, { stiffness: 300, damping: 30, mass: 0.6 });
 
   // Tilt — kept tight so it reads as precise rather than floppy
-  const rotateX = useTransform(mouseY, [-0.5, 0.5], [10, -10]);
-  const rotateY = useTransform(mouseX, [-0.5, 0.5], [-10, 10]);
+  const rotateX = useTransform(mouseY, [-0.5, 0.5], [5, -5]);
+  const rotateY = useTransform(mouseX, [-0.5, 0.5], [-5, 5]);
 
   // Grounded shadow: shifts opposite the tilt, as if light is fixed
   // overhead and the card is genuinely lifting off the page.
@@ -43,13 +43,13 @@ export default function InteractiveProfileCard() {
   const shadowY = useTransform(mouseY, [-0.5, 0.5], [14, -14]);
   const shadowOpacity = useTransform(
     [mouseX, mouseY],
-    ([lx, ly]: number[]) => 0.35 + Math.min(1, Math.hypot(lx, ly) * 2.2) * 0.25
+    ([lx, ly]: number[]) => 0.25 + Math.min(1, Math.hypot(lx, ly) * 2.2) * 0.16
   );
 
   // Soft highlight that tracks the pointer directly
   const shineX = useTransform(mouseX, [-0.5, 0.5], ["12%", "88%"]);
   const shineY = useTransform(mouseY, [-0.5, 0.5], ["12%", "88%"]);
-  const shineBackground = useMotionTemplate`radial-gradient(220px circle at ${shineX} ${shineY}, rgba(255,255,255,0.5), transparent 70%)`;
+  const shineBackground = useMotionTemplate`radial-gradient(220px circle at ${shineX} ${shineY}, rgba(255,255,255,0.28), transparent 70%)`;
 
   // A thin ring of light that orbits the frame, angled toward the pointer.
   // This is the one bold move — everything else stays quiet around it.
@@ -96,14 +96,14 @@ export default function InteractiveProfileCard() {
       className="relative mt-10 flex justify-center perspective-[1700px]"
     >
       <motion.div
-        animate={reducedMotion ? {} : { y: active ? 0 : [-7, 7, -7] }}
+            animate={reducedMotion ? {} : { y: active ? 0 : [-3, 3, -3] }}
         transition={{
           duration: 5.5,
           repeat: active ? 0 : Infinity,
           ease: "easeInOut",
           delay: 0.8,
         }}
-        className="relative will-change-transform [transform:translateZ(0)]"
+        className="relative -rotate-2 will-change-transform [transform:translateZ(0)]"
       >
         {/* Hardware-accelerated grounded shadow — replaces heavy dynamic filter:drop-shadow */}
         {!reducedMotion && (
@@ -138,13 +138,13 @@ export default function InteractiveProfileCard() {
                 : { rotateZ: 0, scale: 1 }
           }
           transition={{ type: "spring", stiffness: 240, damping: 18 }}
-          style={{
-            rotateX: reducedMotion ? 0 : rotateX,
-            rotateY: reducedMotion ? 0 : rotateY,
-            transformStyle: "preserve-3d",
-            touchAction: "none",
-          }}
-          className="group relative h-86 w-72.5 cursor-pointer rounded-[32px] border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/80 focus-visible:ring-offset-4 focus-visible:ring-offset-black"
+            style={{
+              rotateX: reducedMotion ? 0 : rotateX,
+              rotateY: reducedMotion ? 0 : rotateY,
+              transformStyle: "preserve-3d",
+              touchAction: "manipulation",
+            }}
+          className="group relative h-86 w-72.5 cursor-pointer rounded-[30px] border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/80 focus-visible:ring-offset-4 focus-visible:ring-offset-black"
         >
           {/* Clickable 3D frame variants: cube, stack, orbit and flip frames. */}
           {frameMode === 1 && (
@@ -251,9 +251,7 @@ export default function InteractiveProfileCard() {
             className="pointer-events-none absolute -inset-3 rounded-[36px] border border-violet-200/30 [transform:translateZ(12px)]"
           />
 
-          <div
-            className="absolute inset-0 overflow-hidden rounded-[32px] border border-white/15 bg-black"
-          >
+          <div className="absolute inset-0 overflow-hidden rounded-[30px] border-2 border-cyan-100/25 bg-slate-950 shadow-[0_24px_70px_rgba(0,0,0,0.45),inset_0_0_0_1px_rgba(139,92,246,0.22)]">
             {/* Photo, pushed slightly forward in 3D space for real depth */}
             <div
               className="absolute -inset-2.5"
@@ -273,17 +271,14 @@ export default function InteractiveProfileCard() {
             <div className="absolute inset-0 bg-linear-to-br from-black/10 via-transparent to-black/50" />
 
             {/* Top glass reflection */}
-            <div className="absolute top-0 left-0 h-24 w-full bg-linear-to-b from-white/10 to-transparent pointer-events-none" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-cyan-100/[0.04] via-transparent to-violet-300/[0.16]" />
 
-            {/* Pointer-tracking highlight */}
-            <motion.div
-              style={{ background: shineBackground, mixBlendMode: "soft-light" }}
-              className="absolute inset-0 pointer-events-none"
-            />
+            {/* Restrained pointer highlight; the frame itself stays opaque and graphic. */}
+            <motion.div style={{ background: shineBackground, mixBlendMode: "screen" }} className="pointer-events-none absolute inset-0 opacity-40" />
 
             {/* Inner hairline */}
             <div
-              className="pointer-events-none absolute inset-0 rounded-[32px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+              className="pointer-events-none absolute inset-0 rounded-[28px] shadow-[inset_0_0_0_1px_rgba(120,210,255,0.18)]"
             />
           </div>
         </motion.button>

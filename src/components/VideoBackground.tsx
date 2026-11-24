@@ -159,7 +159,7 @@ export default function VideoBackground() {
     <>
       <div
         ref={fadeRef}
-        className="fixed inset-0 z-0 h-screen w-full overflow-hidden pointer-events-none"
+        className="fixed inset-0 z-0 h-screen w-full overflow-hidden pointer-events-none opacity-55 blur-[3px] sm:blur-[5px]"
       >
         {/* Video 1 */}
         <video
@@ -169,7 +169,7 @@ export default function VideoBackground() {
           playsInline
           preload={mediaUnlocked ? "metadata" : "none"}
           onEnded={handleVideoEnded}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 saturate-[0.7] ${
             activeIdx === 0 ? "opacity-100" : "opacity-0"
           }`}
         />
@@ -182,20 +182,23 @@ export default function VideoBackground() {
           playsInline
           preload={mediaUnlocked ? "metadata" : "none"}
           onEnded={handleVideoEnded}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 saturate-[0.7] ${
             activeIdx === 1 ? "opacity-100" : "opacity-0"
           }`}
         />
 
-        <div className="absolute inset-0 bg-linear-to-b from-black/60 via-black/40 to-black" />
+        <div className="absolute inset-0 bg-linear-to-b from-black/80 via-black/70 to-black/95" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_12%,rgba(0,0,0,0.55)_78%,rgba(0,0,0,0.9))]" />
       </div>
 
       <button
         onClick={togglePlayback}
         aria-label={isPlaying ? "Pause video background" : "Play video background"}
-        className="fixed bottom-20 right-6 z-50 rounded-full border border-white/20 bg-white/10 p-3 text-white backdrop-blur-xl transition hover:bg-white/20 sm:bottom-8 sm:right-8 sm:p-4"
+        title="Toggle ambient video texture"
+        className="fixed bottom-6 left-6 z-50 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/25 px-3 py-2 text-white/65 backdrop-blur-xl transition hover:border-cyan-200/40 hover:bg-black/40 hover:text-white sm:bottom-8 sm:left-8"
       >
-        {isPlaying && !reducedMotion ? <Pause size={20} /> : <Play size={20} />}
+        {isPlaying && !reducedMotion ? <Pause size={15} /> : <Play size={15} />}
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em]">Texture</span>
       </button>
     </>
   );

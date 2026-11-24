@@ -5,6 +5,7 @@ import HeroSection from "@/components/HeroSection";
 import PhotosensitiveWarning from "@/components/PhotosensitiveWarning";
 import AboutSection from "@/components/AboutSection";
 import Footer from "@/components/Footer";
+import StackSection from "@/components/StackSection";
 
 const ProjectSection = dynamic(
   () => import("@/components/ProjectSection"),
@@ -19,6 +20,7 @@ export default function Home() {
       <HeroSection />
       <AboutSection />
       <ProjectSection />
+      <StackSection />
       <Footer />
       <PhotosensitiveWarning />
     </div>
