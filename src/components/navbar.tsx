@@ -117,7 +117,7 @@ export default function Navbar() {
   const desktopAnimate = (() => {
     if (effectiveStage === "hidden") {
       return {
-        width: 140,
+        maxWidth: 140,
         marginTop: 14,
         height: 44,
         borderRadius: 9999,
@@ -129,9 +129,9 @@ export default function Navbar() {
     }
     if (effectiveStage === "bubble") {
       return {
-        width: 860,
+        maxWidth: 860,
         marginTop: 14,
-        height: 60,
+        height: 58,
         borderRadius: 9999,
         y: [-32, 5, 0],
         scaleY: [0.55, 1.09, 0.98, 1],
@@ -140,9 +140,9 @@ export default function Navbar() {
       };
     }
     return {
-      width: floating ? 860 : "100%",
+      maxWidth: floating ? 860 : 1200,
       marginTop: floating ? 14 : 0,
-      height: floating ? 60 : 76,
+      height: floating ? 58 : 72,
       borderRadius: floating ? 9999 : 0,
       y: 0,
       scaleY: 1,

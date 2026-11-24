@@ -1,9 +1,9 @@
 .wrap {
   position: relative;
-  width: clamp(31rem, min(58vw, 95vh), 66rem);
-  height: clamp(31rem, min(58vw, 95vh), 66rem);
+  width: clamp(22rem, min(52vw, 88svh), 64rem);
+  height: clamp(22rem, min(52vw, 88svh), 64rem);
   flex-shrink: 0;
-  padding: 1.5rem;
+  padding: clamp(0.75rem, 1.8svh, 1.5rem);
   touch-action: pan-y;
 }
 
@@ -15,16 +15,16 @@
 
 @media (max-width: 1023px) {
   .wrap {
-    width: clamp(26rem, 82vw, 42rem);
-    height: clamp(26rem, 82vw, 42rem);
+    width: clamp(19rem, min(78vw, 52svh), 38rem);
+    height: clamp(19rem, min(78vw, 52svh), 38rem);
     padding: 1rem;
   }
 }
 
 @media (max-width: 639px) {
   .wrap {
-    width: min(94vw, 33rem);
-    height: min(94vw, 33rem);
+    width: min(88vw, 48svh, 30rem);
+    height: min(88vw, 48svh, 30rem);
     padding: 0.75rem;
   }
 }

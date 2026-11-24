@@ -47,7 +47,7 @@ function GlobeCardOverlay({
       />
 
       {/* Sharp opened card flipping forward from the globe center */}
-      <div className="relative z-10 w-full max-w-2xl" style={{ perspective: 1200 }}>
+      <div className="relative z-10 w-full max-w-[min(42rem,90vw,108svh)]" style={{ perspective: 1200 }}>
         <motion.div
           role="dialog"
           aria-modal="true"
@@ -268,7 +268,7 @@ export default function HeroSection() {
           : { duration: 0.95, ease: [0.65, 0, 0.35, 1] as const };
 
   return (
-    <section ref={heroRef} className="relative isolate z-10 flex min-h-[min(900px,100svh)] items-center overflow-hidden px-6 py-28 sm:px-10 md:min-h-screen md:px-14 lg:px-20">
+    <section ref={heroRef} className="relative isolate z-10 flex min-h-svh items-center overflow-hidden px-[clamp(1.25rem,4vw,5rem)] py-[clamp(4.5rem,7svh,6.5rem)] lg:py-[clamp(2.25rem,4.5svh,4.5rem)]">
       <motion.div
         initial={false}
         animate={{ opacity: stageRevealed ? 1 : 0 }}
@@ -279,9 +279,9 @@ export default function HeroSection() {
         <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_24%_48%,rgba(25,55,125,0.22),transparent_44%),linear-gradient(180deg,rgba(3,6,18,0.12),rgba(3,5,14,0.68))]" />
       </motion.div>
 
-      <div className="relative z-10 mx-auto grid w-full max-w-[1760px] items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] lg:gap-12 xl:grid-cols-[minmax(0,1fr)_760px] xl:gap-0">
+      <div className="relative z-10 mx-auto grid w-full max-w-[1760px] items-center gap-[clamp(1.5rem,4svh,3rem)] lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)] lg:gap-6 xl:gap-4">
         <div
-          className="relative z-20 max-w-3xl text-left lg:max-w-[72rem]"
+          className="relative z-20 min-w-0 max-w-3xl text-left lg:max-w-[72rem]"
           style={{ pointerEvents: heroTextVisible && !isCardOpen ? "auto" : "none" }}
         >
           <motion.div
@@ -289,16 +289,16 @@ export default function HeroSection() {
             animate={heroTextVisible ? visibleTextState : reducedMotion ? { opacity: stageRevealed ? 1 : 0, x: 0, y: 0, filter: "blur(0px)" } : hiddenTextState}
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           >
-            <span className="inline-flex rounded-full border border-white/20 bg-white/[0.08] px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-white/70 backdrop-blur-md sm:px-5 sm:py-2 sm:text-xs">Polyglot Programmer <span className="mx-2 text-cyan-200/60">•</span> Full Stack <span className="mx-2 text-violet-200/60">•</span> Creative Engineering</span>
+            <span className="inline-flex rounded-full border border-white/20 bg-white/[0.08] px-[clamp(0.75rem,1.1vw,1.25rem)] py-[clamp(0.35rem,0.55vw,0.5rem)] font-mono text-[clamp(9.5px,0.72vw,12px)] uppercase tracking-[0.16em] text-white/70 backdrop-blur-md">Polyglot Programmer <span className="mx-2 text-cyan-200/60">•</span> Full Stack <span className="mx-2 text-violet-200/60">•</span> Creative Engineering</span>
           </motion.div>
           <motion.h1
             initial={false}
             animate={heroTextVisible ? visibleTextState : reducedMotion ? { opacity: stageRevealed ? 1 : 0, x: 0, y: 0, filter: "blur(0px)" } : hiddenTextState}
             transition={{ duration: 0.7, delay: heroTextVisible && !reducedMotion ? 0.1 : 0, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-7 max-w-none overflow-visible text-[clamp(2.7rem,5.5vw,6.8rem)] font-extrabold leading-[0.94] tracking-[-0.055em] sm:mt-9"
+            className="mt-[clamp(1.25rem,3svh,2.25rem)] max-w-none overflow-visible text-[clamp(2.2rem,min(4.65vw,9.0svh),6.5rem)] font-extrabold leading-[0.94] tracking-[-0.055em]"
           >
             <span className="block font-sans font-semibold tracking-[-0.07em] text-white/90 lg:whitespace-nowrap">Hi! I&apos;m Harshal.</span>
-            <span className="mt-3 block max-w-full overflow-visible bg-linear-to-r from-cyan-100 via-white/90 to-violet-200 bg-clip-text pb-2 font-serif text-[1.05em] font-normal italic leading-[1.08] tracking-[-0.055em] text-transparent [filter:drop-shadow(0_4px_16px_rgba(255,255,255,0.12))] sm:mt-4 lg:whitespace-nowrap lg:text-[0.84em]">
+            <span className="mt-[clamp(0.5rem,1.2svh,1rem)] block max-w-full overflow-visible bg-linear-to-r from-cyan-100 via-white/90 to-violet-200 bg-clip-text pb-2 font-serif text-[1.05em] font-normal italic leading-[1.08] tracking-[-0.055em] text-transparent [filter:drop-shadow(0_4px_16px_rgba(255,255,255,0.12))] lg:whitespace-nowrap lg:text-[0.84em]">
               <span className="hero-keyword inline-block cursor-pointer px-1 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("MaTriX")}>MaTriX</span>{" "}
               <span className="hero-keyword inline-block cursor-pointer px-1 focus-visible:outline-2 focus-visible:outline-cyan-200" {...keywordProps("programmer")}>programmer</span>
             </span>
@@ -308,10 +308,10 @@ export default function HeroSection() {
             animate={heroTextVisible ? visibleTextState : reducedMotion ? { opacity: stageRevealed ? 1 : 0, x: 0, y: 0, filter: "blur(0px)" } : hiddenTextState}
             transition={{ duration: 0.65, delay: heroTextVisible && !reducedMotion ? 0.2 : 0, ease: [0.22, 1, 0.36, 1] }}
           >
-            <p className="mt-7 max-w-xl text-base leading-7 text-white/65 sm:mt-8 sm:text-lg sm:leading-8">Modern interfaces powered by code, immersive visuals and elegant engineering.</p>
-            <div className="mt-8 flex flex-wrap items-center gap-3 sm:mt-9">
-              <a href="#projects" className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_40px_rgba(100,180,255,0.22)] transition hover:-translate-y-0.5 hover:bg-cyan-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">View Projects</a>
-              <a href={`mailto:${EMAIL}`} className="rounded-full border border-white/25 bg-white/[0.07] px-5 py-3 text-sm font-semibold text-white/90 backdrop-blur-md transition hover:-translate-y-0.5 hover:border-cyan-200/60 hover:bg-white/[0.13] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Let&apos;s Talk <span aria-hidden="true" className="ml-1 text-cyan-200">↗</span></a>
+            <p className="mt-[clamp(1.1rem,2.6svh,2rem)] max-w-xl text-[clamp(0.95rem,min(1.15vw,2.1svh),1.15rem)] leading-[1.6] text-white/65">Modern interfaces powered by code, immersive visuals and elegant engineering.</p>
+            <div className="mt-[clamp(1.25rem,3svh,2.25rem)] flex flex-wrap items-center gap-3">
+              <a href="#projects" className="rounded-full bg-white px-[clamp(1.1rem,1.4vw,1.35rem)] py-[clamp(0.6rem,1.1svh,0.8rem)] text-[clamp(0.82rem,0.92vw,0.92rem)] font-semibold text-slate-950 shadow-[0_12px_40px_rgba(100,180,255,0.22)] transition hover:-translate-y-0.5 hover:bg-cyan-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">View Projects</a>
+              <a href={`mailto:${EMAIL}`} className="rounded-full border border-white/25 bg-white/[0.07] px-[clamp(1.1rem,1.4vw,1.35rem)] py-[clamp(0.6rem,1.1svh,0.8rem)] text-[clamp(0.82rem,0.92vw,0.92rem)] font-semibold text-white/90 backdrop-blur-md transition hover:-translate-y-0.5 hover:border-cyan-200/60 hover:bg-white/[0.13] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Let&apos;s Talk <span aria-hidden="true" className="ml-1 text-cyan-200">↗</span></a>
             </div>
           </motion.div>
         </div>
@@ -319,7 +319,7 @@ export default function HeroSection() {
         {/* Un-transformed slot for measuring resting position; inner canvas translates smoothly via translate3d */}
         <div
           ref={globeSlotRef}
-          className="relative z-10 flex w-full items-center justify-center"
+          className="relative z-10 flex min-w-0 w-full items-center justify-center"
         >
           <motion.div
             initial={false}

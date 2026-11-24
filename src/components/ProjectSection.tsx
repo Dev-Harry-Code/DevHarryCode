@@ -316,7 +316,7 @@ export const ProjectSection: React.FC = () => {
           </motion.p>
         </div>
 
-        <div className="grid grid-cols-12 gap-6 auto-rows-[280px]">
+        <div className="grid grid-cols-12 gap-[clamp(1rem,2vw,1.5rem)] auto-rows-[clamp(200px,27svh,280px)]">
           {PROJECTS.map((project, index) => (
             <ProjectCard
               key={project.id}
@@ -519,7 +519,7 @@ const Modal: React.FC<ModalProps> = ({ project, onClose }) => {
         role="dialog"
         aria-modal="true"
         aria-labelledby={`project-dialog-${project.id}`}
-        className="liquid-glass-3d relative z-10 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl backdrop-blur-2xl"
+        className="liquid-glass-3d relative z-10 max-h-[90svh] w-full max-w-2xl overflow-y-auto rounded-2xl shadow-2xl backdrop-blur-2xl"
       >
         <div className="relative h-48 w-full overflow-hidden">
           <Image src={project.imageUrl} alt={project.title} fill sizes="(max-width: 768px) 100vw, 672px" className="object-cover" />

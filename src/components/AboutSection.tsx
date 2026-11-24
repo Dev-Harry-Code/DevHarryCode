@@ -518,9 +518,9 @@ export default function AboutSection(): React.ReactElement {
   };
 
   const getContainerStyles = () => {
-    if (windowState === 'maximized') return 'fixed inset-2 sm:inset-4 z-50 flex flex-col max-w-none h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)]';
+    if (windowState === 'maximized') return 'fixed inset-2 sm:inset-4 z-50 flex flex-col max-w-none h-[calc(100svh-1rem)] sm:h-[calc(100svh-2rem)]';
     if (windowState === 'minimized') return 'w-full max-w-5xl h-[36px] overflow-hidden';
-    return 'w-full max-w-5xl h-[520px] sm:h-[650px] flex flex-col';
+    return 'w-full max-w-5xl h-[min(520px,78svh)] sm:h-[min(650px,80svh)] flex flex-col';
   };
 
   return (
@@ -545,7 +545,7 @@ export default function AboutSection(): React.ReactElement {
         className={cn(
           'terminal-section relative isolate overflow-hidden scroll-mt-24 flex w-full items-center justify-center p-2 sm:p-4 transition-all duration-300',
           !isSectionVisible && 'terminal-paused',
-          windowState === 'maximized' ? 'min-h-screen' : 'min-h-[520px] sm:min-h-[650px]'
+          windowState === 'maximized' ? 'min-h-screen' : 'min-h-[min(520px,82svh)] sm:min-h-[min(650px,84svh)]'
         )}
       >
         <div className="starfield" aria-hidden="true">
@@ -671,7 +671,7 @@ export default function AboutSection(): React.ReactElement {
                   <pre
                     ref={asciiPreRef}
                     className={cn(
-                      'text-[6px] xs:text-[8px] sm:text-xs leading-tight transition-colors duration-500 select-none',
+                      'text-[clamp(4.5px,0.88vw,11px)] leading-tight transition-colors duration-500 select-none',
                       isAnimating
                         ? 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.35)]'
                         : 'text-zinc-300'
