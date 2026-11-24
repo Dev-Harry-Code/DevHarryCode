@@ -724,8 +724,8 @@ function Globe({
         if (deltaRy > Math.PI) deltaRy -= twoPi;
         const targetRy = group.current.rotation.y + deltaRy;
 
-        group.current.rotation.y = THREE.MathUtils.damp(group.current.rotation.y, targetRy, 6, dt);
-        group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, targetRx, 6, dt);
+        group.current.rotation.y = THREE.MathUtils.damp(group.current.rotation.y, targetRy, 9.5, dt);
+        group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, targetRx, 9.5, dt);
       } else {
         const assemblyProgress = THREE.MathUtils.clamp(
           assemblyClockRef.current / TOTAL_ASSEMBLY_TIME,
@@ -748,16 +748,17 @@ function Globe({
       const interactive =
         !selectedCard &&
         (introPhase === "hero-text" || introPhase === "nav-open" || introPhase === "complete");
+      const tiltSpeed = selectedCard ? 9.5 : 3.5;
       tilt.current.rotation.x = THREE.MathUtils.damp(
         tilt.current.rotation.x,
         interactive ? -pointer.current.y * 0.075 : 0,
-        3.5,
+        tiltSpeed,
         dt,
       );
       tilt.current.rotation.y = THREE.MathUtils.damp(
         tilt.current.rotation.y,
         interactive ? pointer.current.x * 0.075 : 0,
-        3.5,
+        tiltSpeed,
         dt,
       );
     }
@@ -829,10 +830,22 @@ export default function ProjectSphereCanvas({
   onSelectCard?: (card: SelectedGlobeCard) => void;
 }) {
   const { phase, reducedMotion, markGlobeReady } = useIntroSequence();
+  const [settledWhileSelected, setSettledWhileSelected] = useState(false);
 
   useEffect(() => {
     markGlobeReady();
   }, [markGlobeReady]);
+
+  useEffect(() => {
+    if (!selectedCard) {
+      const resetId = window.setTimeout(() => setSettledWhileSelected(false), 0);
+      return () => window.clearTimeout(resetId);
+    }
+    const timer = window.setTimeout(() => {
+      setSettledWhileSelected(true);
+    }, reducedMotion ? 100 : 850);
+    return () => window.clearTimeout(timer);
+  }, [selectedCard, reducedMotion]);
 
   const isWaiting = phase === "waiting-consent";
   const interactive =
@@ -849,7 +862,7 @@ export default function ProjectSphereCanvas({
     >
       <Canvas
         className={styles.canvas}
-        frameloop={isWaiting ? "demand" : "always"}
+        frameloop={isWaiting || (selectedCard && settledWhileSelected) ? "demand" : "always"}
         resize={{ scroll: false }}
         camera={{ position: [0, 0, 15.4], fov: 48 }}
         dpr={[1, 1.25]}
